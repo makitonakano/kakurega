@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KAKUREGA カクレガ</title>
+<meta name="description" content="観光地の外側にある、もう一つの日本。KAKUREGAは、そんな景色を一枚ずつ集めています。">
+<meta name="robots" content="noindex">
+<meta property="og:type" content="website">
+<meta property="og:title" content="KAKUREGA カクレガ">
+<meta property="og:description" content="ひと駅先の、まだ見ぬ日本。">
+<meta property="og:url" content="https://makitonakano.github.io/kakurega/">
+<meta property="og:image" content="https://makitonakano.github.io/kakurega/img/l/tennozaki-park.webp">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Stardos+Stencil:wght@700&text=KAKUREGA&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="bar">
+  <div class="left">
+    <h1 class="brand"><a href="#gallery" id="brand"><span class="logo" lang="en">KAKUREGA</span><span class="kana">カクレガ</span></a></h1>
+    <p class="caption" id="caption" aria-hidden="true"><span id="caption-a"></span><span class="b" id="caption-b"></span></p>
+  </div>
+  <nav class="tabs" data-t-label="tabs" aria-label="表示の切り替え">
+    <a href="#gallery" data-tab="gallery" data-t="gallery">写真</a>
+    <a href="#map" data-tab="map" data-t="map">地図</a>
+  </nav>
+  <div class="lang">
+    <button type="button" id="lang-button" popovertarget="lang-menu" aria-label="言語: 日本語">
+      <span id="lang-current">日本語</span>
+      <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3"/></svg>
+    </button>
+    <div id="lang-menu" popover></div>
+  </div>
+</header>
+
+<main>
+  <section id="view-gallery" data-t-label="gallery" aria-label="写真">
+    <div class="season" id="season" hidden>
+      <div class="season-body">
+        <div class="season-stage" id="season-stage"></div>
+        <div class="season-side season-left">
+          <p class="season-place" id="season-a"></p>
+        </div>
+        <div class="season-side season-right">
+          <p class="season-place b" id="season-b"></p>
+        </div>
+      </div>
+      <div class="season-nav">
+        <button type="button" id="season-prev" data-t-label="prev" aria-label="前の写真">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 6l-6 6 6 6"/></svg>
+        </button>
+        <p class="season-count"><span id="season-now">1</span> / <span id="season-total">1</span></p>
+        <button type="button" id="season-next" data-t-label="next" aria-label="次の写真">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="hero" id="hero" hidden>
+      <a class="hero-photo" id="hero-link" href="#gallery"><img id="hero-img" alt=""></a>
+      <div class="hero-text">
+        <p class="hero-sub" id="hero-sub"></p>
+        <h2 class="hero-catch" data-t="catch">ひと駅先の、
+まだ見ぬ日本。</h2>
+        <p class="hero-about" id="hero-about"></p>
+      </div>
+    </div>
+    <ul class="grid" id="grid"></ul>
+  </section>
+  <section id="view-map" data-t-label="map" aria-label="地図">
+    <div id="map-canvas"></div>
+    <div class="zoom">
+      <button type="button" id="zoom-in" data-t-label="zoomIn" aria-label="拡大">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg>
+      </button>
+      <button type="button" id="zoom-out" data-t-label="zoomOut" aria-label="縮小">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg>
+      </button>
+    </div>
+  </section>
+</main>
+
+<dialog id="viewer" data-t-label="photo" aria-label="写真">
+  <button type="button" class="icon close" id="viewer-close" data-t-label="close" aria-label="閉じる">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>
+  </button>
+  <button type="button" class="icon prev" id="viewer-prev" data-t-label="prev" aria-label="前の写真">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4l-8 8 8 8"/></svg>
+  </button>
+  <button type="button" class="icon next" id="viewer-next" data-t-label="next" aria-label="次の写真">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4l8 8-8 8"/></svg>
+  </button>
+  <figure tabindex="-1" autofocus>
+    <div class="stage" id="viewer-stage"><img id="viewer-img" alt=""></div>
+    <figcaption>
+      <div class="caption-row">
+        <p class="place"><span id="viewer-a"></span><span class="b" id="viewer-b"></span></p>
+        <a id="viewer-map" href="#map" data-t="map">地図</a>
+      </div>
+      <a class="credit" id="viewer-credit" target="_blank" rel="noopener" hidden></a>
+    </figcaption>
+  </figure>
+</dialog>
+
+<script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+<script src="map-style.js"></script>
+<script src="prefectures.js"></script>
+<script src="i18n.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
