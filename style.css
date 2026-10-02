@@ -772,12 +772,32 @@ figcaption {
 
 .place {
   margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  column-gap: 10px;
   font-weight: 500;
   text-wrap: balance;
+}
+
+#viewer-place {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  column-gap: 10px;
+}
+
+#viewer-place[href] {
+  min-height: 44px;
+}
+
+#viewer-place[href] #viewer-a {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+  text-decoration-color: var(--quiet);
+  transition: text-decoration-color 0.14s ease-out;
+}
+
+#viewer-place[href]:hover #viewer-a {
+  text-decoration-color: currentColor;
 }
 
 #viewer-map {

@@ -105,7 +105,7 @@
     const [first, second] = pair(name);
     a.textContent = first.text;
     a.lang = first.lang;
-    b.textContent = second.text;
+    b.textContent = second.text === first.text ? "" : second.text;
     b.lang = second.lang;
   }
 
@@ -714,6 +714,9 @@
     viewerImg.src = (tile && tile.currentSrc) || src("s", p);
     viewerImg.alt = label(p);
     fillNames(viewerA, viewerB, p.name);
+    const placeLink = $("viewer-place");
+    if (p.link) placeLink.href = p.link;
+    else placeLink.removeAttribute("href");
     viewerMap.hidden = typeof p.lat !== "number";
     const credit = $("viewer-credit");
     credit.hidden = !p.credit;
