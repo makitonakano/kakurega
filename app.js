@@ -4,9 +4,11 @@
   const placed = photos.filter((p) => typeof p.lat === "number");
   const TABS = ["gallery", "map"];
   const MAPLIBRE = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl";
-  const SMALL = 440;
+  const SMALL = 480;
   const THUMB = 840;
   const LARGE = 1920;
+  const density = Math.min(1, 2 / (window.devicePixelRatio || 1));
+  const sizesFor = (cssWidth) => `${Math.ceil(cssWidth * density)}px`;
   const src = (size, p) => `img/${size}/${p.id}.webp`;
   const widthAt = (p, height) => Math.round((p.w * Math.min(p.h, height)) / p.h);
   const largeWidth = (p) => Math.round(p.w * Math.min(1, LARGE / Math.max(p.w, p.h)));
@@ -313,8 +315,10 @@
     img.decoding = "async";
     img.loading = "lazy";
     img.fetchPriority = "low";
-    img.sizes = `${Math.ceil(Math.max(innerWidth, (hero.clientHeight * heroPhoto.w) / heroPhoto.h))}px`;
-    img.srcset = wideSet(heroPhoto);
+    if (innerWidth >= 600) {
+      img.sizes = sizesFor(Math.max(innerWidth, (hero.clientHeight * heroPhoto.w) / heroPhoto.h));
+      img.srcset = wideSet(heroPhoto);
+    }
     img.src = src("t", heroPhoto);
     if (img.complete) img.classList.add("ready");
   }
@@ -353,9 +357,10 @@
       slide.el.classList.toggle("jump", jump);
       slide.el.style.transform = `translateX(${Math.round(seasonCenter(slide, r) - slide.w / 2)}px)`;
       slide.el.tabIndex = Math.abs(r) < 0.5 ? 0 : -1;
-      if (!slide.loaded && slide.w && Math.abs(r) <= 2.5) {
+      if (!slide.loaded && slide.w && Math.abs(r) <= 1.5) {
         slide.loaded = true;
-        slide.img.sizes = `${slide.w}px`;
+        slide.img.fetchPriority = Math.abs(r) < 0.5 ? "high" : "low";
+        slide.img.sizes = sizesFor(slide.w);
         slide.img.srcset = tileSet(season.items[k]);
         slide.img.src = src("s", season.items[k]);
       }
@@ -524,7 +529,7 @@
       img.loading = "lazy";
       img.decoding = "async";
       img.addEventListener("load", () => img.classList.add("ready"));
-      img.sizes = `${Math.ceil((p.w / p.h) * row * 1.2)}px`;
+      img.sizes = sizesFor((p.w / p.h) * row * 1.2);
       img.srcset = tileSet(p);
       img.src = src("s", p);
       if (img.complete) img.classList.add("ready");
