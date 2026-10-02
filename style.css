@@ -2,14 +2,14 @@
   font-family: "Stardos Stencil";
   font-weight: 700;
   font-display: swap;
-  src: url("fonts/title.woff2") format("woff2");
+  src: url("fonts/title.woff2?v=575d8513") format("woff2");
 }
 
 @font-face {
   font-family: "Shippori Mincho";
   font-weight: 500;
   font-display: swap;
-  src: url("fonts/catch.woff2") format("woff2");
+  src: url("fonts/catch.woff2?v=13e76f22") format("woff2");
 }
 
 :root {

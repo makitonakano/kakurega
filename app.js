@@ -9,7 +9,7 @@
   const LARGE = 1920;
   const density = Math.min(1, 2 / (window.devicePixelRatio || 1));
   const sizesFor = (cssWidth) => `${Math.ceil(cssWidth * density)}px`;
-  const src = (size, p) => `img/${size}/${p.id}.webp`;
+  const src = (size, p) => `img/${size}/${p.id}.webp${p.v ? `?v=${p.v}` : ""}`;
   const widthAt = (p, height) => Math.round((p.w * Math.min(p.h, height)) / p.h);
   const largeWidth = (p) => Math.round(p.w * Math.min(1, LARGE / Math.max(p.w, p.h)));
   const tileSet = (p) => `${src("s", p)} ${widthAt(p, SMALL)}w, ${src("t", p)} ${widthAt(p, THUMB)}w`;
@@ -148,8 +148,8 @@
       mapStack = Promise.all([
         loadFile("link", { rel: "stylesheet", href: `${MAPLIBRE}.css` }),
         loadFile("script", { src: `${MAPLIBRE}.js` }),
-        loadFile("script", { src: "map-style.js" }),
-        loadFile("script", { src: "prefectures.js" }),
+        loadFile("script", { src: "map-style.js?v=b7f9f09d" }),
+        loadFile("script", { src: "prefectures.js?v=8555db89" }),
       ]).then(() => {
         prefectures = window.PREFECTURES;
         prefNames = new Map(prefectures.features.map((f) => [f.id, f.properties]));
