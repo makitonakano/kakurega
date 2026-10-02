@@ -13,7 +13,7 @@
 <meta property="og:image" content="https://makitonakano.github.io/kakurega/img/l/tennozaki-park.webp">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preload" href="fonts/title.woff2?v=575d8513" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=453adf39">
+<link rel="stylesheet" href="style.css?v=3bf8e357">
 </head>
 <body>
 <header class="bar">
@@ -22,8 +22,12 @@
     <p class="caption" id="caption" aria-hidden="true"><span id="caption-a"></span><span class="b" id="caption-b"></span></p>
   </div>
   <nav class="tabs" data-t-label="tabs" aria-label="表示の切り替え">
-    <a href="#gallery" data-tab="gallery" data-t="gallery">写真</a>
-    <a href="#map" data-tab="map" data-t="map">地図</a>
+    <a href="#gallery" data-tab="gallery" data-t-label="gallery" aria-label="写真">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5.5h9v6h-9zM14.5 5.5h6v6h-6zM3.5 13.5h5v6h-5zM10.5 13.5h10v6h-10z"/></svg>
+    </a>
+    <a href="#map" data-tab="map" data-t-label="map" aria-label="地図">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5l5.5-2 6 2 5.5-2v13l-5.5 2-6-2-5.5 2zM9 4.5v13M15 6.5v13"/></svg>
+    </a>
   </nav>
   <div class="lang">
     <button type="button" id="lang-button" popovertarget="lang-menu" aria-label="言語: 日本語">

@@ -161,13 +161,19 @@ a {
 }
 
 .tabs a {
-  display: flex;
-  align-items: center;
+  display: grid;
+  place-items: center;
+  width: 44px;
   height: 44px;
-  padding: 0 14px;
-  font-weight: 500;
-  color: var(--quiet);
+  color: #b4b4b4;
   transition: color 0.14s ease-out;
+}
+
+.tabs svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 1.2;
+  stroke-linejoin: miter;
 }
 
 .tabs a:hover,
