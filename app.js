@@ -515,7 +515,7 @@
 
   function renderGrid() {
     const row = innerWidth < 600 ? 120 : Math.min(400, Math.max(200, innerWidth * 0.24));
-    const items = photos.map((p) => {
+    const items = photos.filter((p) => !p.demo).map((p) => {
       const li = document.createElement("li");
       li.style.setProperty("--ar", (p.w / p.h).toFixed(4));
       const a = document.createElement("a");
