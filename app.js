@@ -1,7 +1,11 @@
 (() => {
   const photos = window.PHOTOS || [];
   const byId = new Map(photos.map((p) => [p.id, p]));
-  const placed = photos.filter((p) => typeof p.lat === "number");
+  const listed = photos.filter((p) => !p.demo);
+  const extras = photos.filter((p) => p.demo);
+  const placed = listed.filter((p) => typeof p.lat === "number");
+  const onMap = (p) => Boolean(p) && !p.demo && typeof p.lat === "number";
+  const poolOf = (p) => (p && p.demo ? extras : listed);
   const TABS = ["gallery", "map"];
   const MAPLIBRE = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl";
   const SMALL = 480;
@@ -717,14 +721,14 @@
     const placeLink = $("viewer-place");
     if (p.link) placeLink.href = p.link;
     else placeLink.removeAttribute("href");
-    viewerMap.hidden = typeof p.lat !== "number";
+    viewerMap.hidden = !onMap(p);
     const credit = $("viewer-credit");
     credit.hidden = !p.credit;
     credit.textContent = p.credit ? `Photo: ${p.credit}` : "";
     credit.classList.toggle("handle", Boolean(p.credit && p.credit.startsWith("@")));
     if (p.source) credit.href = p.source;
     else credit.removeAttribute("href");
-    const single = photos.length < 2;
+    const single = poolOf(p).length < 2;
     prevButton.hidden = single;
     nextButton.hidden = single;
     if (!viewer.open) viewer.showModal();
@@ -813,9 +817,11 @@
   }
 
   function step(delta) {
-    if (photos.length < 2 || !state.id) return;
-    const i = photos.findIndex((p) => p.id === state.id);
-    const next = photos[(i + delta + photos.length) % photos.length];
+    if (!state.id) return;
+    const pool = poolOf(byId.get(state.id));
+    if (pool.length < 2) return;
+    const i = pool.findIndex((p) => p.id === state.id);
+    const next = pool[(i + delta + pool.length) % pool.length];
     history.replaceState(null, "", `#${state.tab}/${next.id}`);
     route();
   }
@@ -835,7 +841,7 @@
   prevButton.addEventListener("click", () => step(-1));
   nextButton.addEventListener("click", () => step(1));
   viewerMap.addEventListener("click", () => {
-    pendingFocus = shown && typeof shown.lat === "number" ? shown : null;
+    pendingFocus = onMap(shown) ? shown : null;
     openedHere = false;
   });
 
