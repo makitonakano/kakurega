@@ -3,6 +3,15 @@
   const byId = new Map(photos.map((p) => [p.id, p]));
   const placed = photos.filter((p) => typeof p.lat === "number");
   const TABS = ["gallery", "map"];
+  const MAPLIBRE = "https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl";
+  const SMALL = 440;
+  const THUMB = 840;
+  const LARGE = 1920;
+  const src = (size, p) => `img/${size}/${p.id}.webp`;
+  const widthAt = (p, height) => Math.round((p.w * Math.min(p.h, height)) / p.h);
+  const largeWidth = (p) => Math.round(p.w * Math.min(1, LARGE / Math.max(p.w, p.h)));
+  const tileSet = (p) => `${src("s", p)} ${widthAt(p, SMALL)}w, ${src("t", p)} ${widthAt(p, THUMB)}w`;
+  const wideSet = (p) => `${src("t", p)} ${widthAt(p, THUMB)}w, ${src("l", p)} ${largeWidth(p)}w`;
   const $ = (id) => document.getElementById(id);
 
   const grid = $("grid");
@@ -98,8 +107,8 @@
     b.lang = second.lang;
   }
 
-  const prefectures = window.PREFECTURES || { type: "FeatureCollection", features: [] };
-  const prefNames = new Map(prefectures.features.map((f) => [f.id, f.properties]));
+  let prefectures = { type: "FeatureCollection", features: [] };
+  let prefNames = new Map();
   const prefLevel = new Map();
   let hoverPref = null;
   let prefFrame = 0;
@@ -121,9 +130,37 @@
     return hit ? hit.id : null;
   }
 
-  placed.forEach((p) => {
-    p.pref = prefectureAt(p.lng, p.lat);
-  });
+  let mapStack = null;
+
+  function loadFile(tag, attrs) {
+    return new Promise((resolve, reject) => {
+      const el = Object.assign(document.createElement(tag), attrs);
+      el.addEventListener("load", resolve);
+      el.addEventListener("error", reject);
+      document.head.append(el);
+    });
+  }
+
+  function loadMapStack() {
+    if (!mapStack) {
+      mapStack = Promise.all([
+        loadFile("link", { rel: "stylesheet", href: `${MAPLIBRE}.css` }),
+        loadFile("script", { src: `${MAPLIBRE}.js` }),
+        loadFile("script", { src: "map-style.js" }),
+        loadFile("script", { src: "prefectures.js" }),
+      ]).then(() => {
+        prefectures = window.PREFECTURES;
+        prefNames = new Map(prefectures.features.map((f) => [f.id, f.properties]));
+        placed.forEach((p) => {
+          p.pref = prefectureAt(p.lng, p.lat);
+        });
+      }).catch((error) => {
+        mapStack = null;
+        throw error;
+      });
+    }
+    return mapStack;
+  }
 
   function styleFor() {
     const style = structuredClone(window.MAP_STYLE);
@@ -270,9 +307,16 @@
     openFrom(link, img, heroPhoto);
     img.style.setProperty("--focus", `${heroPhoto.hero}%`);
     img.addEventListener("load", () => img.classList.add("ready"));
-    img.src = heroPhoto.large;
+    const hero = $("hero");
+    hero.style.backgroundColor = heroPhoto.c;
+    hero.hidden = false;
+    img.decoding = "async";
+    img.loading = "lazy";
+    img.fetchPriority = "low";
+    img.sizes = `${Math.ceil(Math.max(innerWidth, (hero.clientHeight * heroPhoto.w) / heroPhoto.h))}px`;
+    img.srcset = wideSet(heroPhoto);
+    img.src = src("t", heroPhoto);
     if (img.complete) img.classList.add("ready");
-    $("hero").hidden = false;
   }
 
   const SEASONS = ["spring", "summer", "autumn", "winter"];
@@ -309,6 +353,12 @@
       slide.el.classList.toggle("jump", jump);
       slide.el.style.transform = `translateX(${Math.round(seasonCenter(slide, r) - slide.w / 2)}px)`;
       slide.el.tabIndex = Math.abs(r) < 0.5 ? 0 : -1;
+      if (!slide.loaded && slide.w && Math.abs(r) <= 2.5) {
+        slide.loaded = true;
+        slide.img.sizes = `${slide.w}px`;
+        slide.img.srcset = tileSet(season.items[k]);
+        slide.img.src = src("s", season.items[k]);
+      }
       season.last[k] = r;
     });
   }
@@ -371,9 +421,10 @@
       el.className = "slide";
       el.href = `#gallery/${p.id}`;
       el.draggable = false;
+      el.style.backgroundColor = p.c;
       const img = document.createElement("img");
-      img.src = p.thumb;
       img.alt = label(p);
+      img.decoding = "async";
       img.draggable = false;
       el.append(img);
       openFrom(el, img, p);
@@ -385,7 +436,7 @@
         }
       });
       stage.append(el);
-      return { el, w: 0 };
+      return { el, img, w: 0, loaded: false };
     });
     $("season-total").textContent = season.items.length;
     const single = season.items.length < 2;
@@ -454,6 +505,7 @@
   }
 
   function renderGrid() {
+    const row = innerWidth < 600 ? 120 : Math.min(400, Math.max(200, innerWidth * 0.24));
     const items = photos.map((p) => {
       const li = document.createElement("li");
       li.style.setProperty("--ar", (p.w / p.h).toFixed(4));
@@ -464,6 +516,7 @@
         origin = null;
       });
       hoverCaption(a, p);
+      a.style.backgroundColor = p.c;
       const img = document.createElement("img");
       img.width = p.w;
       img.height = p.h;
@@ -471,7 +524,9 @@
       img.loading = "lazy";
       img.decoding = "async";
       img.addEventListener("load", () => img.classList.add("ready"));
-      img.src = p.thumb;
+      img.sizes = `${Math.ceil((p.w / p.h) * row * 1.2)}px`;
+      img.srcset = tileSet(p);
+      img.src = src("s", p);
       if (img.complete) img.classList.add("ready");
       thumbs.set(p.id, img);
       a.append(img);
@@ -510,7 +565,7 @@
     pin.className = "pin";
     pin.setAttribute("aria-label", items.length > 1 ? `${label(first)} ${t("more").replace("{n}", items.length - 1)}` : label(first));
     const img = document.createElement("img");
-    img.src = first.pin;
+    img.src = src("p", first);
     img.alt = "";
     pin.append(img);
     if (items.length > 1) {
@@ -569,38 +624,40 @@
   }
 
   function ensureMap() {
-    if (map || !window.maplibregl) return;
-    map = new maplibregl.Map({
-      container: "map-canvas",
-      style: styleFor(),
-      center: [138, 37.6],
-      zoom: 4.4,
-      minZoom: 3.2,
-      maxZoom: 17,
-      maxBounds: [[104, 14], [172, 56]],
-      dragRotate: false,
-      pitchWithRotate: false,
-      touchPitch: false,
-      attributionControl: false,
-      localIdeographFontFamily: '"Zen Kaku Gothic New", "Hiragino Sans", sans-serif',
+    return loadMapStack().then(() => {
+      if (map) return;
+      map = new maplibregl.Map({
+        container: "map-canvas",
+        style: styleFor(),
+        center: [138, 37.6],
+        zoom: 4.4,
+        minZoom: 3.2,
+        maxZoom: 17,
+        maxBounds: [[104, 14], [172, 56]],
+        dragRotate: false,
+        pitchWithRotate: false,
+        touchPitch: false,
+        attributionControl: false,
+        localIdeographFontFamily: '"Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", sans-serif',
+      });
+      map.touchZoomRotate.disableRotation();
+      map.keyboard.disableRotation();
+      map.addControl(new maplibregl.AttributionControl({ compact: false }), "bottom-left");
+      map.on("zoomend", layoutMarkers);
+      map.on("zoom", () => {
+        if (Math.abs(map.getZoom() - lastZoom) >= 0.6) layoutMarkers();
+      });
+      map.on("mousemove", (e) => {
+        if (!map.getLayer("pref-fill")) return;
+        const hit = map.queryRenderedFeatures(e.point, { layers: ["pref-fill"] })[0];
+        setHoverPref(hit ? hit.id : null);
+      });
+      mapSection.addEventListener("mouseleave", () => setHoverPref(null));
+      $("zoom-in").addEventListener("click", () => map.zoomIn({ duration: 350 }));
+      $("zoom-out").addEventListener("click", () => map.zoomOut({ duration: 350 }));
+      fitAll();
+      layoutMarkers();
     });
-    map.touchZoomRotate.disableRotation();
-    map.keyboard.disableRotation();
-    map.addControl(new maplibregl.AttributionControl({ compact: false }), "bottom-left");
-    map.on("zoomend", layoutMarkers);
-    map.on("zoom", () => {
-      if (Math.abs(map.getZoom() - lastZoom) >= 0.6) layoutMarkers();
-    });
-    map.on("mousemove", (e) => {
-      if (!map.getLayer("pref-fill")) return;
-      const hit = map.queryRenderedFeatures(e.point, { layers: ["pref-fill"] })[0];
-      setHoverPref(hit ? hit.id : null);
-    });
-    mapSection.addEventListener("mouseleave", () => setHoverPref(null));
-    $("zoom-in").addEventListener("click", () => map.zoomIn({ duration: 350 }));
-    $("zoom-out").addEventListener("click", () => map.zoomOut({ duration: 350 }));
-    fitAll();
-    layoutMarkers();
   }
 
   function setTab(tab, focus) {
@@ -615,11 +672,13 @@
     showCaption(null);
     if (tab === "gallery") window.scrollTo(0, galleryScroll);
     if (tab === "map") {
-      ensureMap();
-      if (!map) return;
-      map.resize();
-      if (focus) map.jumpTo({ center: [focus.lng, focus.lat], zoom: Math.max(map.getZoom(), 12) });
-      layoutMarkers();
+      const show = () => {
+        map.resize();
+        if (focus) map.jumpTo({ center: [focus.lng, focus.lat], zoom: Math.max(map.getZoom(), 12) });
+        layoutMarkers();
+      };
+      if (map) show();
+      else ensureMap().then(() => state.tab === "map" && show()).catch(() => {});
     }
   }
 
@@ -633,7 +692,8 @@
 
   function showPhoto(p) {
     shown = p;
-    viewerImg.src = p.thumb;
+    const tile = thumbs.get(p.id);
+    viewerImg.src = (tile && tile.currentSrc) || src("s", p);
     viewerImg.alt = label(p);
     fillNames(viewerA, viewerB, p.name);
     viewerMap.hidden = typeof p.lat !== "number";
@@ -649,9 +709,9 @@
     if (!viewer.open) viewer.showModal();
     fitViewer();
     const large = new Image();
-    large.src = p.large;
+    large.src = src("l", p);
     large.decode().then(() => {
-      if (shown === p) viewerImg.src = p.large;
+      if (shown === p) viewerImg.src = large.src;
     }).catch(() => {});
   }
 
@@ -840,5 +900,14 @@
   applyLang();
   route();
   layoutSeason();
-  (window.requestIdleCallback || ((run) => setTimeout(run, 300)))(() => ensureMap());
+
+  const warmMap = () => ensureMap().catch(() => {});
+  const mapTab = document.querySelector('[data-tab="map"]');
+  ["pointerenter", "touchstart", "focus"].forEach((type) => mapTab.addEventListener(type, warmMap, { once: true, passive: true }));
+  const saving = navigator.connection && navigator.connection.saveData;
+  if (innerWidth >= 900 && !saving) {
+    const later = () => setTimeout(() => (window.requestIdleCallback || setTimeout)(warmMap), 1500);
+    if (document.readyState === "complete") later();
+    else window.addEventListener("load", later, { once: true });
+  }
 })();

@@ -1,3 +1,17 @@
+@font-face {
+  font-family: "Stardos Stencil";
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/title.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Shippori Mincho";
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/catch.woff2") format("woff2");
+}
+
 :root {
   --paper: #fff;
   --ink: #000;
@@ -9,18 +23,13 @@
   --inset: 16px;
   --row: 120px;
   --move: cubic-bezier(0.3, 0, 0.1, 1);
-  --font: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
   --font-system: system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif;
+  --font: var(--font-system);
   --display: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif;
 }
 
-:root:lang(ko),
-:root:lang(zh-Hans),
-:root:lang(zh-Hant),
-:root:lang(th),
-:root:lang(vi),
-:root:lang(hi) {
-  --font: var(--font-system);
+:root:lang(ja) {
+  --font: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic Medium", "Yu Gothic", "Noto Sans JP", "Noto Sans CJK JP", Meiryo, sans-serif;
 }
 
 :root:lang(ko),
@@ -31,15 +40,6 @@
 :root:lang(hi),
 :root:lang(ru) {
   --display: Georgia, "Songti SC", "AppleMyungjo", "Noto Serif", "Times New Roman", serif;
-}
-
-#lang-menu button:lang(ko),
-#lang-menu button:lang(zh-Hans),
-#lang-menu button:lang(zh-Hant),
-#lang-menu button:lang(th),
-#lang-menu button:lang(vi),
-#lang-menu button:lang(hi) {
-  font-family: var(--font-system);
 }
 
 @media (min-width: 600px) {
