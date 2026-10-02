@@ -360,6 +360,10 @@
       if (!slide.loaded && slide.w && Math.abs(r) <= 1.5) {
         slide.loaded = true;
         slide.img.fetchPriority = Math.abs(r) < 0.5 ? "high" : "low";
+        if (Math.abs(r) < 0.5 && !tilesStarted) {
+          slide.img.addEventListener("load", startTiles, { once: true });
+          slide.img.addEventListener("error", startTiles, { once: true });
+        }
         slide.img.sizes = sizesFor(slide.w);
         slide.img.srcset = tileSet(season.items[k]);
         slide.img.src = src("s", season.items[k]);
@@ -530,15 +534,24 @@
       img.decoding = "async";
       img.addEventListener("load", () => img.classList.add("ready"));
       img.sizes = sizesFor((p.w / p.h) * row * 1.2);
-      img.srcset = tileSet(p);
-      img.src = src("s", p);
-      if (img.complete) img.classList.add("ready");
       thumbs.set(p.id, img);
       a.append(img);
       li.append(a);
       return li;
     });
     grid.replaceChildren(...items);
+  }
+
+  let tilesStarted = false;
+
+  function startTiles() {
+    if (tilesStarted) return;
+    tilesStarted = true;
+    thumbs.forEach((img, id) => {
+      const p = byId.get(id);
+      img.srcset = tileSet(p);
+      img.src = src("s", p);
+    });
   }
 
   const mercX = (lng) => (lng + 180) / 360;
@@ -905,6 +918,8 @@
   applyLang();
   route();
   layoutSeason();
+  if (season.items.length && !state.id) setTimeout(startTiles, 2500);
+  else startTiles();
 
   const warmMap = () => ensureMap().catch(() => {});
   const mapTab = document.querySelector('[data-tab="map"]');
