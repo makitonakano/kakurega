@@ -741,34 +741,104 @@
     }).catch(() => {});
   }
 
+  const MUSICKIT = "https://js-cdn.music.apple.com/musickit/v3/musickit.js";
+  const SOUND_KEY = "kakurega-sound";
+  const soundButton = $("sound");
+  let soundOn = false;
+  let musicKit = null;
+  let playing = null;
+
+  try {
+    soundOn = sessionStorage.getItem(SOUND_KEY) === "1";
+  } catch (e) {
+    soundOn = false;
+  }
+
+  function ensureMusicKit() {
+    if (!musicKit) {
+      musicKit = loadFile("script", { src: "music-token.js?v=be449084" })
+        .then(() => {
+          if (!window.MUSIC_TOKEN || window.MUSIC_TOKEN.exp * 1000 < Date.now()) throw new Error("no token");
+          const ready = new Promise((resolve) => (window.MusicKit ? resolve() : document.addEventListener("musickitloaded", resolve, { once: true })));
+          return loadFile("script", { src: MUSICKIT, async: true }).then(() => ready);
+        })
+        .then(() => MusicKit.configure({ developerToken: window.MUSIC_TOKEN.token, app: { name: "KAKUREGA", build: "1.0" }, storefrontId: "jp" }))
+        .then((mk) => {
+          const kit = mk || MusicKit.getInstance();
+          kit.previewOnly = true;
+          if (MusicKit.PlayerRepeatMode) kit.repeatMode = MusicKit.PlayerRepeatMode.one;
+          return kit;
+        })
+        .catch((error) => {
+          musicKit = null;
+          throw error;
+        });
+    }
+    return musicKit;
+  }
+
+  function setSound(on) {
+    soundOn = on;
+    soundButton.setAttribute("aria-pressed", String(on));
+    soundButton.setAttribute("aria-label", on ? t("mute") : t("unmute"));
+    try {
+      sessionStorage.setItem(SOUND_KEY, on ? "1" : "0");
+    } catch (e) {
+      soundOn = on;
+    }
+  }
+
+  function stopSong() {
+    playing = null;
+    if (!musicKit) return;
+    musicKit.then((kit) => kit.pause()).catch(() => {});
+  }
+
+  function startSong(p) {
+    playing = p;
+    ensureMusicKit()
+      .then((kit) => {
+        if (playing !== p || !soundOn) return null;
+        return kit.setQueue({ song: p.music.id, startPlaying: true }).then(() => kit.play());
+      })
+      .catch(() => {
+        if (playing === p) setSound(false);
+      });
+  }
+
   function showMusic(p) {
     const box = $("viewer-music");
     const chip = $("music-chip");
-    box.querySelectorAll("iframe").forEach((f) => f.remove());
-    chip.hidden = false;
     box.hidden = !p.music;
-    if (!p.music) return;
+    soundButton.hidden = !p.music;
+    if (!p.music) {
+      stopSong();
+      return;
+    }
     $("music-art").src = p.music.art || "";
     $("music-title").textContent = p.music.title;
     $("music-artist").textContent = p.music.artist;
+    chip.href = `https://music.apple.com/jp/album/${encodeURIComponent(p.music.album)}?i=${encodeURIComponent(p.music.id)}`;
     chip.setAttribute("aria-label", `${t("music")}: ${p.music.title} — ${p.music.artist}`);
+    setSound(soundOn);
+    if (soundOn) startSong(p);
+    else {
+      stopSong();
+      ensureMusicKit().catch(() => {
+        soundButton.hidden = true;
+      });
+    }
   }
 
-  function playMusic() {
+  function toggleSound() {
     if (!shown || !shown.music) return;
-    const box = $("viewer-music");
-    const frame = document.createElement("iframe");
-    frame.title = `${shown.music.title} — ${shown.music.artist}`;
-    frame.allow = "autoplay *; encrypted-media *; fullscreen *; clipboard-write";
-    frame.setAttribute("sandbox", "allow-forms allow-popups allow-same-origin allow-scripts allow-storage-access-by-user-activation allow-top-navigation-by-user-activation");
-    frame.src = `https://embed.music.apple.com/jp/album/${encodeURIComponent(shown.music.album)}?i=${encodeURIComponent(shown.music.id)}&theme=light`;
-    $("music-chip").hidden = true;
-    box.append(frame);
-    requestAnimationFrame(fitViewer);
+    setSound(!soundOn);
+    if (soundOn) startSong(shown);
+    else stopSong();
   }
 
   function hidePhoto() {
-    if (shown && shown.music) $("viewer-music").querySelectorAll("iframe").forEach((f) => f.remove());
+    stopSong();
     shown = null;
     if (viewer.open) viewer.close();
   }
@@ -866,7 +936,10 @@
     if (e.key === "ArrowRight") step(1);
   });
   $("viewer-close").addEventListener("click", closeViewer);
-  $("music-chip").addEventListener("click", playMusic);
+  soundButton.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleSound();
+  });
   prevButton.addEventListener("click", () => step(-1));
   nextButton.addEventListener("click", () => step(1));
   viewerMap.addEventListener("click", () => {

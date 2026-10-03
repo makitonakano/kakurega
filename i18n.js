@@ -32,6 +32,8 @@ window.I18N = {
       zoomIn: "拡大",
       zoomOut: "縮小",
       music: "曲を聴く",
+      unmute: "音を出す",
+      mute: "消音",
       more: "ほか{n}枚",
     },
     en: {
@@ -48,6 +50,8 @@ window.I18N = {
       zoomIn: "Zoom in",
       zoomOut: "Zoom out",
       music: "Play song",
+      unmute: "Turn sound on",
+      mute: "Mute",
       more: "and {n} more",
     },
     ko: {
@@ -64,6 +68,8 @@ window.I18N = {
       zoomIn: "확대",
       zoomOut: "축소",
       music: "곡 듣기",
+      unmute: "소리 켜기",
+      mute: "음소거",
       more: "외 {n}장",
     },
     "zh-Hans": {
@@ -80,6 +86,8 @@ window.I18N = {
       zoomIn: "放大",
       zoomOut: "缩小",
       music: "播放歌曲",
+      unmute: "打开声音",
+      mute: "静音",
       more: "另外 {n} 张",
     },
     "zh-Hant": {
@@ -96,6 +104,8 @@ window.I18N = {
       zoomIn: "放大",
       zoomOut: "縮小",
       music: "播放歌曲",
+      unmute: "開啟聲音",
+      mute: "靜音",
       more: "另外 {n} 張",
     },
     th: {
@@ -112,6 +122,8 @@ window.I18N = {
       zoomIn: "ขยาย",
       zoomOut: "ย่อ",
       music: "ฟังเพลง",
+      unmute: "เปิดเสียง",
+      mute: "ปิดเสียง",
       more: "และอีก {n} ภาพ",
     },
     vi: {
@@ -128,6 +140,8 @@ window.I18N = {
       zoomIn: "Phóng to",
       zoomOut: "Thu nhỏ",
       music: "Nghe bài hát",
+      unmute: "Bật âm thanh",
+      mute: "Tắt tiếng",
       more: "và {n} ảnh khác",
     },
     id: {
@@ -144,6 +158,8 @@ window.I18N = {
       zoomIn: "Perbesar",
       zoomOut: "Perkecil",
       music: "Putar lagu",
+      unmute: "Nyalakan suara",
+      mute: "Bisukan",
       more: "dan {n} lainnya",
     },
     ms: {
@@ -160,6 +176,8 @@ window.I18N = {
       zoomIn: "Zum masuk",
       zoomOut: "Zum keluar",
       music: "Main lagu",
+      unmute: "Hidupkan bunyi",
+      mute: "Senyapkan",
       more: "dan {n} lagi",
     },
     fil: {
@@ -176,6 +194,8 @@ window.I18N = {
       zoomIn: "Mag-zoom in",
       zoomOut: "Mag-zoom out",
       music: "Pakinggan ang kanta",
+      unmute: "Buksan ang tunog",
+      mute: "I-mute",
       more: "at {n} pa",
     },
     fr: {
@@ -192,6 +212,8 @@ window.I18N = {
       zoomIn: "Zoom avant",
       zoomOut: "Zoom arrière",
       music: "Écouter le morceau",
+      unmute: "Activer le son",
+      mute: "Couper le son",
       more: "et {n} autres",
     },
     de: {
@@ -208,6 +230,8 @@ window.I18N = {
       zoomIn: "Vergrößern",
       zoomOut: "Verkleinern",
       music: "Song abspielen",
+      unmute: "Ton einschalten",
+      mute: "Stummschalten",
       more: "und {n} weitere",
     },
     it: {
@@ -224,6 +248,8 @@ window.I18N = {
       zoomIn: "Ingrandisci",
       zoomOut: "Riduci",
       music: "Ascolta il brano",
+      unmute: "Attiva l’audio",
+      mute: "Disattiva l’audio",
       more: "e altre {n}",
     },
     es: {
@@ -240,6 +266,8 @@ window.I18N = {
       zoomIn: "Acercar",
       zoomOut: "Alejar",
       music: "Escuchar la canción",
+      unmute: "Activar sonido",
+      mute: "Silenciar",
       more: "y {n} más",
     },
     ru: {
@@ -256,6 +284,8 @@ window.I18N = {
       zoomIn: "Увеличить",
       zoomOut: "Уменьшить",
       music: "Слушать песню",
+      unmute: "Включить звук",
+      mute: "Выключить звук",
       more: "и ещё {n}",
     },
     hi: {
@@ -272,6 +302,8 @@ window.I18N = {
       zoomIn: "ज़ूम इन",
       zoomOut: "ज़ूम आउट",
       music: "गाना सुनें",
+      unmute: "आवाज़ चालू करें",
+      mute: "म्यूट करें",
       more: "और {n} तस्वीरें",
     },
   },

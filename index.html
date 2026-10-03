@@ -13,7 +13,7 @@
 <meta property="og:image" content="https://makitonakano.github.io/kakurega/img/l/tennozaki-park.webp">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preload" href="fonts/title.woff2?v=575d8513" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=0773f0fd">
+<link rel="stylesheet" href="style.css?v=54183d11">
 </head>
 <body>
 <header class="bar">
@@ -95,26 +95,34 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4l8 8-8 8"/></svg>
   </button>
   <figure tabindex="-1" autofocus>
-    <div class="stage" id="viewer-stage"><img id="viewer-img" alt=""></div>
+    <div class="stage" id="viewer-stage">
+      <div class="shot">
+        <img id="viewer-img" alt="">
+        <button type="button" class="sound" id="sound" aria-pressed="false" hidden>
+          <svg class="sound-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4zM16 9.5l5 5M21 9.5l-5 5"/></svg>
+          <svg class="sound-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4zM15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/></svg>
+        </button>
+      </div>
+    </div>
     <figcaption>
       <div class="caption-row">
         <p class="place"><a id="viewer-place" target="_blank" rel="noopener"><span id="viewer-a"></span><span class="b" id="viewer-b"></span></a></p>
         <a id="viewer-map" href="#map" data-t="map">地図</a>
       </div>
       <div class="music" id="viewer-music" hidden>
-        <button type="button" class="music-chip" id="music-chip">
+        <a class="music-chip" id="music-chip" target="_blank" rel="noopener">
           <img id="music-art" alt="">
           <span class="music-text"><span id="music-title"></span><span class="b" id="music-artist"></span></span>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 6v12l9.5-6z"/></svg>
-        </button>
+          <span class="music-badge">Apple Music</span>
+        </a>
       </div>
       <a class="credit" id="viewer-credit" target="_blank" rel="noopener" hidden></a>
     </figcaption>
   </figure>
 </dialog>
 
-<script src="i18n.js?v=447bd77f"></script>
+<script src="i18n.js?v=bd05a711"></script>
 <script src="data.js?v=1a72b03b"></script>
-<script src="app.js?v=fcce0e1c"></script>
+<script src="app.js?v=8e820818"></script>
 </body>
 </html>

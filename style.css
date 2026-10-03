@@ -742,6 +742,48 @@ figure {
   background: var(--hold);
 }
 
+.shot {
+  position: relative;
+}
+
+.sound {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 36px;
+  height: 36px;
+  padding: 8px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.14s ease-out, transform 0.14s ease-out;
+}
+
+.sound:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.sound:active {
+  transform: scale(0.94);
+}
+
+.sound svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.5;
+}
+
+.sound .sound-on,
+.sound[aria-pressed="true"] .sound-off {
+  display: none;
+}
+
+.sound[aria-pressed="true"] .sound-on {
+  display: block;
+}
+
 figcaption {
   display: grid;
   align-content: center;
@@ -793,27 +835,14 @@ figcaption {
   text-overflow: ellipsis;
 }
 
-.music-chip svg {
+.music-badge {
   flex: none;
-  width: 18px;
-  height: 18px;
-  fill: currentColor;
-  stroke: none;
-  transition: transform 0.14s ease-out;
+  font-size: 11px;
+  color: var(--quiet);
 }
 
-.music-chip:hover svg {
-  transform: scale(1.15);
-}
-
-.music iframe {
-  display: block;
-  width: min(460px, 100%);
-  height: 175px;
-  border: 0;
-  border-radius: 10px;
-  overflow: hidden;
-  background: transparent;
+.music-chip:hover .music-badge {
+  color: var(--ink);
 }
 
 .caption-row {
