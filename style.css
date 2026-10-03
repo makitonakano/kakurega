@@ -716,12 +716,14 @@ figure:focus {
 }
 
 figure {
+  --cap: 112px;
+  position: relative;
   margin: 0;
   height: 100%;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) auto;
-  padding: calc(56px + env(safe-area-inset-top)) 16px env(safe-area-inset-bottom);
+  grid-template-rows: minmax(0, 1fr);
+  padding: calc(56px + env(safe-area-inset-top)) 16px calc(8px + env(safe-area-inset-bottom));
 }
 
 @media (min-width: 600px) {
@@ -742,6 +744,7 @@ figure {
 .slot {
   position: absolute;
   inset: 0;
+  padding-bottom: var(--cap);
   display: grid;
   place-items: center;
   pointer-events: none;
@@ -805,13 +808,15 @@ figure {
 }
 
 figcaption {
+  position: absolute;
+  left: var(--cap-x, 16px);
+  top: var(--cap-y, 0);
+  width: var(--cap-w, auto);
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 44px 46px 28px;
-  align-items: center;
-  justify-items: center;
-  padding: 6px 0 8px;
+  justify-items: start;
+  row-gap: 4px;
   transition: opacity 0.12s ease-out;
 }
 
@@ -819,13 +824,71 @@ figcaption.off {
   opacity: 0;
 }
 
-.music {
+.caption-row {
+  justify-self: stretch;
   min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  justify-items: center;
-  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.place {
+  min-width: 0;
   margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+#viewer-place {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 10px;
+}
+
+#viewer-place .b {
+  font-size: 13px;
+  font-weight: 400;
+}
+
+#viewer-place[href] #viewer-a {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+  text-decoration-color: var(--quiet);
+  transition: text-decoration-color 0.14s ease-out;
+}
+
+#viewer-place[href]:hover #viewer-a {
+  text-decoration-color: currentColor;
+}
+
+#viewer-map {
+  flex: none;
+  font-size: 13px;
+  line-height: 1.45;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+}
+
+.credit {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--quiet);
+  transition: color 0.14s ease-out;
+}
+
+.credit[href]:hover {
+  color: var(--ink);
+}
+
+.music {
+  justify-self: stretch;
+  min-width: 0;
+  margin: 6px 0 0;
 }
 
 .music-chip {
@@ -833,22 +896,17 @@ figcaption.off {
   align-items: center;
   gap: 10px;
   min-width: 0;
-  max-width: min(420px, 100%);
-  height: 40px;
-  padding: 0 12px 0 0;
-  border: 0;
-  background: none;
+  max-width: 100%;
+  height: 32px;
   color: var(--ink);
-  font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   text-align: start;
-  cursor: pointer;
 }
 
 .music-chip img {
   flex: none;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   object-fit: cover;
   background: var(--hold);
 }
@@ -878,79 +936,14 @@ figcaption.off {
 
 .music-badge {
   flex: none;
+  margin-left: auto;
+  padding-left: 12px;
   font-size: 11px;
   color: var(--quiet);
 }
 
 .music-chip:hover .music-badge {
   color: var(--ink);
-}
-
-.caption-row {
-  max-width: 100%;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 28px;
-}
-
-.credit {
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--quiet);
-}
-
-.credit:hover {
-  color: var(--ink);
-}
-
-.credit.handle {
-  display: flex;
-  align-items: center;
-  min-height: 32px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ink);
-}
-
-.place {
-  margin: 0;
-  font-weight: 500;
-  text-wrap: balance;
-}
-
-#viewer-place {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  column-gap: 10px;
-}
-
-#viewer-place[href] {
-  min-height: 44px;
-}
-
-#viewer-place[href] #viewer-a {
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 5px;
-  text-decoration-color: var(--quiet);
-  transition: text-decoration-color 0.14s ease-out;
-}
-
-#viewer-place[href]:hover #viewer-a {
-  text-decoration-color: currentColor;
-}
-
-#viewer-map {
-  display: flex;
-  align-items: center;
-  height: 44px;
-  flex: none;
-  font-weight: 500;
-  background: linear-gradient(currentColor, currentColor) 0 calc(50% + 12px) / 100% 1px no-repeat;
 }
 
 .icon {

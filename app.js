@@ -722,9 +722,13 @@
 
   function sizeTo(img, p) {
     const r = stage.getBoundingClientRect();
-    const k = Math.min(r.width / p.w, r.height / p.h);
+    const k = Math.min(r.width / p.w, Math.max(1, r.height - capSpace()) / p.h);
     img.style.width = `${Math.floor(p.w * k)}px`;
     img.style.height = `${Math.floor(p.h * k)}px`;
+  }
+
+  function capSpace() {
+    return parseFloat(getComputedStyle(stage).getPropertyValue("--cap")) || 0;
   }
 
   function slideGap() {
@@ -742,10 +746,19 @@
   function placeSound() {
     if (!shown) return;
     const r = stage.getBoundingClientRect();
+    const cap = capSpace();
     const w = parseFloat(viewerImg.style.width) || 0;
     const h = parseFloat(viewerImg.style.height) || 0;
-    soundButton.style.setProperty("--sound-x", `${Math.round((r.width - w) / 2 + 12)}px`);
-    soundButton.style.setProperty("--sound-y", `${Math.round((r.height - h) / 2 + 12)}px`);
+    const left = (r.width - w) / 2;
+    const top = (r.height - cap - h) / 2;
+    soundButton.style.setProperty("--sound-x", `${Math.round(left + 12)}px`);
+    soundButton.style.setProperty("--sound-y", `${Math.round(r.height - top - h + 12)}px`);
+    const caption = viewer.querySelector("figcaption");
+    const width = Math.min(r.width, Math.max(w, 300));
+    const x = Math.max(0, Math.min(left, r.width - width));
+    caption.style.setProperty("--cap-x", `${Math.round(stage.offsetLeft + x)}px`);
+    caption.style.setProperty("--cap-y", `${Math.round(stage.offsetTop + top + h + 14)}px`);
+    caption.style.setProperty("--cap-w", `${Math.round(width)}px`);
   }
 
   function fitViewer() {
@@ -822,7 +835,6 @@
     const credit = $("viewer-credit");
     credit.hidden = !p.credit;
     credit.textContent = p.credit ? `Photo: ${p.credit}` : "";
-    credit.classList.toggle("handle", Boolean(p.credit && p.credit.startsWith("@")));
     if (p.source) credit.href = p.source;
     else credit.removeAttribute("href");
     showMusic(p);
