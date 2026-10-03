@@ -788,8 +788,27 @@
     }
   }
 
+  const FADE_MS = 600;
+  let fadeTimer = 0;
+
+  function fadeIn(kit, p) {
+    clearInterval(fadeTimer);
+    let start = 0;
+    fadeTimer = setInterval(() => {
+      if (playing !== p) return clearInterval(fadeTimer);
+      if (!start) {
+        if (kit.playbackState !== 2) return;
+        start = performance.now();
+      }
+      const x = Math.min(1, (performance.now() - start) / FADE_MS);
+      kit.volume = 1 - (1 - x) * (1 - x);
+      if (x >= 1) clearInterval(fadeTimer);
+    }, 30);
+  }
+
   function stopSong() {
     playing = null;
+    clearInterval(fadeTimer);
     if (!musicKit) return;
     musicKit.then((kit) => kit.pause()).catch(() => {});
   }
@@ -799,7 +818,13 @@
     ensureMusicKit()
       .then((kit) => {
         if (playing !== p || !soundOn) return null;
-        return kit.setQueue({ song: p.music.id, startPlaying: true }).then(() => kit.play());
+        clearInterval(fadeTimer);
+        kit.volume = 0;
+        return kit.setQueue({ song: p.music.id, startPlaying: true }).then(() => {
+          if (playing !== p) return null;
+          fadeIn(kit, p);
+          return kit.play();
+        });
       })
       .catch(() => {
         if (playing === p) setSound(false);
