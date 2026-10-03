@@ -1,19 +1,5 @@
 (() => {
-  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  const volumeWorks = (() => {
-    const probe = document.createElement("audio");
-    probe.volume = 0.5;
-    return probe.volume === 0.5 && !isIOS && !/[?&]webaudio\b/.test(location.search);
-  })();
-  if (!volumeWorks) {
-    const create = document.createElement.bind(document);
-    document.createElement = (tag, options) => {
-      const el = create(tag, options);
-      if (String(tag).toLowerCase() === "audio") el.crossOrigin = "anonymous";
-      return el;
-    };
-    if (navigator.audioSession) navigator.audioSession.type = "playback";
-  }
+  if (navigator.audioSession) navigator.audioSession.type = "playback";
   const photos = window.PHOTOS || [];
   const byId = new Map(photos.map((p) => [p.id, p]));
   const listed = photos.filter((p) => !p.demo);
@@ -803,47 +789,7 @@
     return musicKit;
   }
 
-  let audioCtx = null;
-  let keepAlive = null;
-  const gains = new WeakMap();
-
-  function silentLoop() {
-    const rate = 8000;
-    const samples = rate / 4;
-    const view = new DataView(new ArrayBuffer(44 + samples));
-    const text = (at, value) => [...value].forEach((c, i) => view.setUint8(at + i, c.charCodeAt(0)));
-    text(0, "RIFF");
-    view.setUint32(4, 36 + samples, true);
-    text(8, "WAVEfmt ");
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, 1, true);
-    view.setUint32(24, rate, true);
-    view.setUint32(28, rate, true);
-    view.setUint16(32, 1, true);
-    view.setUint16(34, 8, true);
-    text(36, "data");
-    view.setUint32(40, samples, true);
-    for (let i = 0; i < samples; i++) view.setUint8(44 + i, 128);
-    const el = document.createElement("audio");
-    el.removeAttribute("crossorigin");
-    el.loop = true;
-    el.setAttribute("playsinline", "");
-    el.setAttribute("x-webkit-airplay", "deny");
-    el.src = URL.createObjectURL(new Blob([view.buffer], { type: "audio/wav" }));
-    return el;
-  }
-
   function unlockAudio() {
-    if (!volumeWorks) {
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (Ctx && !audioCtx) audioCtx = new Ctx();
-      if (audioCtx && audioCtx.state !== "running") audioCtx.resume().catch(() => {});
-      if (isIOS) {
-        keepAlive = keepAlive || silentLoop();
-        if (keepAlive.paused) keepAlive.play().catch(() => {});
-      }
-    }
     if (!kitReady) return;
     try {
       kitReady.deferPlayback();
@@ -852,36 +798,8 @@
     }
   }
 
-  function gainFor() {
-    if (volumeWorks || !audioCtx) return null;
-    const els = document.querySelectorAll("audio#apple-music-player");
-    const el = els[els.length - 1];
-    if (!el) return null;
-    if (!gains.has(el)) {
-      try {
-        const node = audioCtx.createGain();
-        audioCtx.createMediaElementSource(el).connect(node).connect(audioCtx.destination);
-        gains.set(el, node);
-      } catch (e) {
-        return null;
-      }
-    }
-    return gains.get(el);
-  }
-
-  function setLevel(kit, level) {
-    const gain = gainFor();
-    if (!gain) {
-      kit.volume = level;
-      return;
-    }
-    gain.gain.value = level;
-    if (kit.volume !== 1) kit.volume = 1;
-  }
-
   function setSound(on) {
     soundOn = on;
-    if (!on && keepAlive) keepAlive.pause();
     soundButton.setAttribute("aria-pressed", String(on));
     soundButton.setAttribute("aria-label", on ? t("mute") : t("unmute"));
     try {
@@ -904,7 +822,7 @@
         start = performance.now();
       }
       const x = Math.min(1, (performance.now() - start) / FADE_MS);
-      setLevel(kit, 1 - (1 - x) * (1 - x));
+      kit.volume = 1 - (1 - x) * (1 - x);
       if (x >= 1) clearInterval(fadeTimer);
     }, 30);
   }
@@ -922,10 +840,9 @@
       .then((kit) => {
         if (playing !== p || !soundOn) return null;
         clearInterval(fadeTimer);
-        kit.volume = volumeWorks ? 0 : 1;
+        kit.volume = 0;
         return kit.setQueue({ song: p.music.id, startPlaying: false }).then(() => {
           if (playing !== p) return null;
-          setLevel(kit, 0);
           fadeIn(kit, p);
           return kit.play();
         });
@@ -1155,30 +1072,6 @@
   $("brand").addEventListener("click", () => {
     if (state.tab === "gallery" && !state.id) window.scrollTo({ top: 0, behavior: reduceMotion.matches ? "auto" : "smooth" });
   });
-
-  if (/[?&]debug\b/.test(location.search)) {
-    const box = document.createElement("pre");
-    box.style.cssText = "position:fixed;left:6px;bottom:6px;z-index:9999;max-width:calc(100vw - 12px);margin:0;padding:8px 10px;background:rgba(0,0,0,.78);color:#fff;font:11px/1.45 ui-monospace,monospace;white-space:pre-wrap;pointer-events:none";
-    viewer.append(box);
-    const probe = document.createElement("audio");
-    probe.volume = 0.5;
-    setInterval(() => {
-      const els = document.querySelectorAll("audio#apple-music-player");
-      const el = els[els.length - 1];
-      const g = el && gains.get(el);
-      const k = kitReady;
-      box.textContent = [
-        navigator.userAgent.replace(/^Mozilla\/5\.0 /, "").slice(0, 140),
-        `iOS=${isIOS} volumeWorks=${volumeWorks} probeVolume=${probe.volume}`,
-        `無音ループ=${keepAlive ? (keepAlive.paused ? "停止" : "再生中") : "なし"}`,
-        `audioSession=${navigator.audioSession ? navigator.audioSession.type : "なし"}`,
-        `audioCtx=${audioCtx ? audioCtx.state : "なし"} sound=${soundOn}`,
-        `kit=${k ? `state ${k.playbackState} vol ${k.volume}` : "なし"}`,
-        `audio要素=${els.length} routed=${Boolean(g)} gain=${g ? g.gain.value.toFixed(2) : "-"}`,
-        el ? `el vol=${el.volume} muted=${el.muted} paused=${el.paused} t=${el.currentTime.toFixed(1)} co=${el.crossOrigin}` : "el なし",
-      ].join("\n");
-    }, 250);
-  }
 
   window.addEventListener("resize", fitViewer);
   window.addEventListener("resize", layoutSeason);
