@@ -750,6 +750,72 @@ figcaption {
   padding: 8px 0 10px;
 }
 
+.music {
+  display: grid;
+  justify-items: center;
+  width: 100%;
+  margin: 2px 0 4px;
+}
+
+.music-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(420px, 100%);
+  height: 40px;
+  padding: 0 12px 0 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.music-chip img {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  background: var(--hold);
+}
+
+.music-text {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.music-text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.music-chip svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  stroke: none;
+  transition: transform 0.14s ease-out;
+}
+
+.music-chip:hover svg {
+  transform: scale(1.15);
+}
+
+.music iframe {
+  display: block;
+  width: min(460px, 100%);
+  height: 175px;
+  border: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: transparent;
+}
+
 .caption-row {
   display: flex;
   align-items: center;

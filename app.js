@@ -728,6 +728,7 @@
     credit.classList.toggle("handle", Boolean(p.credit && p.credit.startsWith("@")));
     if (p.source) credit.href = p.source;
     else credit.removeAttribute("href");
+    showMusic(p);
     const single = poolOf(p).length < 2;
     prevButton.hidden = single;
     nextButton.hidden = single;
@@ -740,7 +741,34 @@
     }).catch(() => {});
   }
 
+  function showMusic(p) {
+    const box = $("viewer-music");
+    const chip = $("music-chip");
+    box.querySelectorAll("iframe").forEach((f) => f.remove());
+    chip.hidden = false;
+    box.hidden = !p.music;
+    if (!p.music) return;
+    $("music-art").src = p.music.art || "";
+    $("music-title").textContent = p.music.title;
+    $("music-artist").textContent = p.music.artist;
+    chip.setAttribute("aria-label", `${t("music")}: ${p.music.title} — ${p.music.artist}`);
+  }
+
+  function playMusic() {
+    if (!shown || !shown.music) return;
+    const box = $("viewer-music");
+    const frame = document.createElement("iframe");
+    frame.title = `${shown.music.title} — ${shown.music.artist}`;
+    frame.allow = "autoplay *; encrypted-media *; fullscreen *; clipboard-write";
+    frame.setAttribute("sandbox", "allow-forms allow-popups allow-same-origin allow-scripts allow-storage-access-by-user-activation allow-top-navigation-by-user-activation");
+    frame.src = `https://embed.music.apple.com/jp/album/${encodeURIComponent(shown.music.album)}?i=${encodeURIComponent(shown.music.id)}&theme=light`;
+    $("music-chip").hidden = true;
+    box.append(frame);
+    requestAnimationFrame(fitViewer);
+  }
+
   function hidePhoto() {
+    if (shown && shown.music) $("viewer-music").querySelectorAll("iframe").forEach((f) => f.remove());
     shown = null;
     if (viewer.open) viewer.close();
   }
@@ -838,6 +866,7 @@
     if (e.key === "ArrowRight") step(1);
   });
   $("viewer-close").addEventListener("click", closeViewer);
+  $("music-chip").addEventListener("click", playMusic);
   prevButton.addEventListener("click", () => step(-1));
   nextButton.addEventListener("click", () => step(1));
   viewerMap.addEventListener("click", () => {
