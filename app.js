@@ -1125,7 +1125,7 @@
   if (/[?&]debug\b/.test(location.search)) {
     const box = document.createElement("pre");
     box.style.cssText = "position:fixed;left:6px;bottom:6px;z-index:9999;max-width:calc(100vw - 12px);margin:0;padding:8px 10px;background:rgba(0,0,0,.78);color:#fff;font:11px/1.45 ui-monospace,monospace;white-space:pre-wrap;pointer-events:none";
-    document.body.append(box);
+    viewer.append(box);
     const probe = document.createElement("audio");
     probe.volume = 0.5;
     setInterval(() => {
