@@ -808,10 +808,15 @@ figcaption {
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  align-content: center;
+  grid-template-rows: 44px 46px 28px;
+  align-items: center;
   justify-items: center;
-  min-height: 64px;
-  padding: 8px 0 10px;
+  padding: 6px 0 8px;
+  transition: opacity 0.12s ease-out;
+}
+
+figcaption.off {
+  opacity: 0;
 }
 
 .music {
@@ -820,7 +825,7 @@ figcaption {
   grid-template-columns: minmax(0, 1fr);
   justify-items: center;
   width: 100%;
-  margin: 2px 0 4px;
+  margin: 0;
 }
 
 .music-chip {

@@ -1128,6 +1128,8 @@
     if (soundOn && next.music && kitReady) startSong(next);
     else if (soundOn && !next.music) stopSong();
     showSound(false);
+    const caption = viewer.querySelector("figcaption");
+    caption.classList.add("off");
     const span = stage.getBoundingClientRect().width + slideGap();
     const target = -delta * span;
     const speed = Math.max(Math.abs(velocity), 1.3);
@@ -1143,6 +1145,7 @@
       updatePeeks();
       placeSound();
       showSound(true);
+      requestAnimationFrame(() => caption.classList.remove("off"));
     });
   }
 
