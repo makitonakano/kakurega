@@ -848,13 +848,17 @@
     });
   }
 
-  const MUSICKIT = "https://js-cdn.music.apple.com/musickit/v3/musickit.js";
   const SOUND_KEY = "kakurega-sound";
   const soundButton = $("sound");
+  const FADE_IN = 0.6;
+  const FADE_OUT = 0.3;
+  const KEEP_SONGS = 6;
   let soundOn = false;
-  let musicKit = null;
-  let kitReady = null;
+  let audioCtx = null;
+  let unlocked = false;
   let playing = null;
+  let current = null;
+  const songs = new Map();
 
   try {
     soundOn = sessionStorage.getItem(SOUND_KEY) === "1";
@@ -862,37 +866,29 @@
     soundOn = false;
   }
 
-  function ensureMusicKit() {
-    if (!musicKit) {
-      musicKit = loadFile("script", { src: "music-token.js?v=be449084" })
-        .then(() => {
-          if (!window.MUSIC_TOKEN || window.MUSIC_TOKEN.exp * 1000 < Date.now()) throw new Error("no token");
-          const ready = new Promise((resolve) => (window.MusicKit ? resolve() : document.addEventListener("musickitloaded", resolve, { once: true })));
-          return loadFile("script", { src: MUSICKIT, async: true }).then(() => ready);
-        })
-        .then(() => MusicKit.configure({ developerToken: window.MUSIC_TOKEN.token, app: { name: "KAKUREGA", build: "1.0" }, storefrontId: "jp", suppressErrorDialog: true }))
-        .then((mk) => {
-          const kit = mk || MusicKit.getInstance();
-          kit.previewOnly = true;
-          if (MusicKit.PlayerRepeatMode) kit.repeatMode = MusicKit.PlayerRepeatMode.one;
-          kitReady = kit;
-          return kit;
-        })
-        .catch((error) => {
-          musicKit = null;
-          throw error;
-        });
+  function hasSong(p) {
+    return Boolean(p && p.music && p.music.preview && (window.AudioContext || window.webkitAudioContext));
+  }
+
+  function ensureAudio() {
+    if (!audioCtx) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      audioCtx = new Ctx();
     }
-    return musicKit;
+    return audioCtx;
   }
 
   function unlockAudio() {
-    if (!kitReady) return;
-    try {
-      kitReady.deferPlayback();
-    } catch (e) {
-      return;
-    }
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    if (ctx.state !== "running" && !document.hidden) ctx.resume().catch(() => {});
+    if (unlocked) return;
+    unlocked = true;
+    const blank = ctx.createBufferSource();
+    blank.buffer = ctx.createBuffer(1, 1, 22050);
+    blank.connect(ctx.destination);
+    blank.start(0);
   }
 
   function setSound(on) {
@@ -906,75 +902,94 @@
     }
   }
 
-  const FADE_MS = 600;
-  let fadeTimer = 0;
-
-  function fadeIn(kit, p, offset, el) {
-    clearInterval(fadeTimer);
-    let begun = 0;
-    let seeking = false;
-    const release = () => {
-      if (el) el.muted = false;
-      begun = performance.now();
+  function songEntry(p) {
+    const id = p.music.id;
+    let entry = songs.get(id);
+    if (entry) {
+      songs.delete(id);
+      songs.set(id, entry);
+      return entry;
+    }
+    entry = {
+      data: fetch(p.music.preview, { mode: "cors", credentials: "omit" }).then((r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.arrayBuffer();
+      }),
+      buffer: null,
     };
-    fadeTimer = setInterval(() => {
-      if (playing !== p) return clearInterval(fadeTimer);
-      if (!begun) {
-        if (kit.playbackState !== 2 || seeking) return;
-        if (offset > 0) {
-          seeking = true;
-          kit.seekToTime(offset).then(() => setTimeout(release, 60), release);
-          return;
-        }
-        release();
-      }
-      const x = Math.min(1, (performance.now() - begun) / FADE_MS);
-      kit.volume = 1 - (1 - x) * (1 - x);
-      if (x >= 1) clearInterval(fadeTimer);
-    }, 30);
+    entry.data.catch(() => songs.delete(id));
+    songs.set(id, entry);
+    while (songs.size > KEEP_SONGS) songs.delete(songs.keys().next().value);
+    return entry;
+  }
+
+  function bufferFor(p, ctx) {
+    const entry = songEntry(p);
+    if (!entry.buffer) {
+      entry.buffer = entry.data.then((data) => new Promise((resolve, reject) => ctx.decodeAudioData(data.slice(0), resolve, reject)));
+      entry.buffer.catch(() => {
+        entry.buffer = null;
+      });
+    }
+    return entry.buffer;
+  }
+
+  function warmSong(p) {
+    if (!hasSong(p)) return;
+    const entry = songEntry(p);
+    if (audioCtx) bufferFor(p, audioCtx).catch(() => {});
+    return entry;
+  }
+
+  function release(song) {
+    if (!song || !audioCtx) return;
+    const now = audioCtx.currentTime;
+    const g = song.gain.gain;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(g.value, now);
+    g.linearRampToValueAtTime(0, now + FADE_OUT);
+    try {
+      song.source.stop(now + FADE_OUT + 0.05);
+    } catch (e) {
+      song.gain.disconnect();
+    }
   }
 
   let songFor = null;
-  const warmed = new Set();
-
-  function warmSong(p) {
-    if (!p.music || warmed.has(p.music.id)) return;
-    warmed.add(p.music.id);
-    if (p.music.preview) fetch(p.music.preview, { mode: "no-cors" }).catch(() => {});
-    if (kitReady && kitReady.api && kitReady.api.music) kitReady.api.music(`/v1/catalog/jp/songs/${p.music.id}`).catch(() => {});
-  }
 
   function stopSong() {
     playing = null;
     songFor = null;
-    clearInterval(fadeTimer);
-    document.querySelectorAll("audio#apple-music-player").forEach((el) => {
-      el.muted = false;
-    });
-    if (!musicKit) return;
-    musicKit.then((kit) => kit.pause()).catch(() => {});
+    release(current);
+    current = null;
   }
 
   function startSong(p) {
     playing = p;
     songFor = p;
-    ensureMusicKit()
-      .then((kit) => {
-        if (playing !== p || !soundOn) return null;
-        clearInterval(fadeTimer);
-        kit.volume = 0;
-        const offset = Math.max(0, Number(p.music.start) || 0);
-        return kit.setQueue({ song: p.music.id, startPlaying: false }).then(() => {
-          if (playing !== p) return null;
-          const els = document.querySelectorAll("audio#apple-music-player");
-          const el = offset > 0 ? els[els.length - 1] : null;
-          if (el) el.muted = true;
-          fadeIn(kit, p, offset, el);
-          return kit.play();
-        });
+    const ctx = ensureAudio();
+    if (!ctx || !hasSong(p)) return;
+    bufferFor(p, ctx)
+      .then((buffer) => {
+        if (playing !== p || !soundOn) return;
+        if (current && current.p === p) return;
+        release(current);
+        const gain = ctx.createGain();
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.loop = true;
+        source.connect(gain);
+        gain.connect(ctx.destination);
+        const at = ctx.currentTime + 0.03;
+        const offset = Math.min(Math.max(0, Number(p.music.start) || 0), Math.max(0, buffer.duration - 1));
+        gain.gain.setValueAtTime(0, at);
+        gain.gain.linearRampToValueAtTime(1, at + FADE_IN);
+        source.start(at, offset);
+        source.onended = () => gain.disconnect();
+        current = { p, source, gain };
       })
       .catch(() => {
-        if (playing === p) setSound(false);
+        if (playing === p) soundButton.hidden = true;
       });
   }
 
@@ -982,7 +997,7 @@
     const box = $("viewer-music");
     const chip = $("music-chip");
     box.hidden = !p.music;
-    soundButton.hidden = !p.music;
+    soundButton.hidden = !hasSong(p);
     if (!p.music) {
       stopSong();
       return;
@@ -994,28 +1009,26 @@
     chip.setAttribute("aria-label", `${t("music")}: ${p.music.title} — ${p.music.artist}`);
     setSound(soundOn);
     if (soundOn) {
-      if (songFor !== p) {
-        playing = p;
-        if (kitReady) startSong(p);
-        else afterMorph(() => {
-          if (shown === p && soundOn) startSong(p);
-        });
-      }
+      if (songFor !== p) startSong(p);
     } else {
       stopSong();
-      afterMorph(() => ensureMusicKit().catch(() => {
-        soundButton.hidden = true;
-      }));
+      warmSong(p);
     }
   }
 
   function toggleSound() {
-    if (!shown || !shown.music) return;
-    unlockAudio();
+    if (!shown || !hasSong(shown)) return;
     setSound(!soundOn);
+    unlockAudio();
     if (soundOn) startSong(shown);
     else stopSong();
   }
+
+  document.addEventListener("visibilitychange", () => {
+    if (!audioCtx) return;
+    if (document.hidden) audioCtx.suspend().catch(() => {});
+    else if (current) audioCtx.resume().catch(() => {});
+  });
 
   function hidePhoto() {
     stopSong();
@@ -1124,9 +1137,9 @@
     const next = neighbor(delta);
     if (!next || sliding) return;
     sliding = true;
-    unlockAudio();
-    if (soundOn && next.music && kitReady) startSong(next);
-    else if (soundOn && !next.music) stopSong();
+    if (soundOn) unlockAudio();
+    if (soundOn && hasSong(next)) startSong(next);
+    else if (soundOn) stopSong();
     showSound(false);
     const caption = viewer.querySelector("figcaption");
     caption.classList.add("off");
@@ -1331,7 +1344,8 @@
   const saving = navigator.connection && navigator.connection.saveData;
   if (!saving && photos.some((p) => p.music && !p.demo)) {
     const warmMusic = () => (window.requestIdleCallback || setTimeout)(() => {
-      if (!shown) ensureMusicKit().catch(() => {});
+      const first = photos.find((p) => hasSong(p) && !p.demo);
+      if (!shown && first) warmSong(first);
     }, { timeout: 4000 });
     const soon = () => setTimeout(warmMusic, 2500);
     if (document.readyState === "complete") soon();
