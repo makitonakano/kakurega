@@ -1,4 +1,18 @@
 (() => {
+  const volumeWorks = (() => {
+    const probe = document.createElement("audio");
+    probe.volume = 0.5;
+    return probe.volume === 0.5 && !/[?&]webaudio\b/.test(location.search);
+  })();
+  if (!volumeWorks) {
+    const create = document.createElement.bind(document);
+    document.createElement = (tag, options) => {
+      const el = create(tag, options);
+      if (String(tag).toLowerCase() === "audio") el.crossOrigin = "anonymous";
+      return el;
+    };
+    if (navigator.audioSession) navigator.audioSession.type = "playback";
+  }
   const photos = window.PHOTOS || [];
   const byId = new Map(photos.map((p) => [p.id, p]));
   const listed = photos.filter((p) => !p.demo);
@@ -788,13 +802,48 @@
     return musicKit;
   }
 
+  let audioCtx = null;
+  const gains = new WeakMap();
+
   function unlockAudio() {
+    if (!volumeWorks) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx && !audioCtx) audioCtx = new Ctx();
+      if (audioCtx && audioCtx.state !== "running") audioCtx.resume().catch(() => {});
+    }
     if (!kitReady) return;
     try {
       kitReady.deferPlayback();
     } catch (e) {
       return;
     }
+  }
+
+  function gainFor() {
+    if (volumeWorks || !audioCtx) return null;
+    const els = document.querySelectorAll("audio#apple-music-player");
+    const el = els[els.length - 1];
+    if (!el) return null;
+    if (!gains.has(el)) {
+      try {
+        const node = audioCtx.createGain();
+        audioCtx.createMediaElementSource(el).connect(node).connect(audioCtx.destination);
+        gains.set(el, node);
+      } catch (e) {
+        return null;
+      }
+    }
+    return gains.get(el);
+  }
+
+  function setLevel(kit, level) {
+    const gain = gainFor();
+    if (!gain) {
+      kit.volume = level;
+      return;
+    }
+    gain.gain.value = level;
+    if (kit.volume !== 1) kit.volume = 1;
   }
 
   function setSound(on) {
@@ -821,7 +870,7 @@
         start = performance.now();
       }
       const x = Math.min(1, (performance.now() - start) / FADE_MS);
-      kit.volume = 1 - (1 - x) * (1 - x);
+      setLevel(kit, 1 - (1 - x) * (1 - x));
       if (x >= 1) clearInterval(fadeTimer);
     }, 30);
   }
@@ -839,9 +888,10 @@
       .then((kit) => {
         if (playing !== p || !soundOn) return null;
         clearInterval(fadeTimer);
-        kit.volume = 0;
-        return kit.setQueue({ song: p.music.id, startPlaying: true }).then(() => {
+        kit.volume = volumeWorks ? 0 : 1;
+        return kit.setQueue({ song: p.music.id, startPlaying: false }).then(() => {
           if (playing !== p) return null;
+          setLevel(kit, 0);
           fadeIn(kit, p);
           return kit.play();
         });
