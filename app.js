@@ -812,16 +812,26 @@
   const FADE_MS = 600;
   let fadeTimer = 0;
 
-  function fadeIn(kit, p) {
+  function fadeIn(kit, p, offset, el) {
     clearInterval(fadeTimer);
-    let start = 0;
+    let begun = 0;
+    let seeking = false;
+    const release = () => {
+      if (el) el.muted = false;
+      begun = performance.now();
+    };
     fadeTimer = setInterval(() => {
       if (playing !== p) return clearInterval(fadeTimer);
-      if (!start) {
-        if (kit.playbackState !== 2) return;
-        start = performance.now();
+      if (!begun) {
+        if (kit.playbackState !== 2 || seeking) return;
+        if (offset > 0) {
+          seeking = true;
+          kit.seekToTime(offset).then(() => setTimeout(release, 60), release);
+          return;
+        }
+        release();
       }
-      const x = Math.min(1, (performance.now() - start) / FADE_MS);
+      const x = Math.min(1, (performance.now() - begun) / FADE_MS);
       kit.volume = 1 - (1 - x) * (1 - x);
       if (x >= 1) clearInterval(fadeTimer);
     }, 30);
@@ -830,6 +840,9 @@
   function stopSong() {
     playing = null;
     clearInterval(fadeTimer);
+    document.querySelectorAll("audio#apple-music-player").forEach((el) => {
+      el.muted = false;
+    });
     if (!musicKit) return;
     musicKit.then((kit) => kit.pause()).catch(() => {});
   }
@@ -841,9 +854,13 @@
         if (playing !== p || !soundOn) return null;
         clearInterval(fadeTimer);
         kit.volume = 0;
+        const offset = Math.max(0, Number(p.music.start) || 0);
         return kit.setQueue({ song: p.music.id, startPlaying: false }).then(() => {
           if (playing !== p) return null;
-          fadeIn(kit, p);
+          const els = document.querySelectorAll("audio#apple-music-player");
+          const el = offset > 0 ? els[els.length - 1] : null;
+          if (el) el.muted = true;
+          fadeIn(kit, p, offset, el);
           return kit.play();
         });
       })
@@ -869,9 +886,10 @@
     setSound(soundOn);
     if (soundOn) {
       playing = p;
-      afterMorph(() => setTimeout(() => {
+      if (kitReady) startSong(p);
+      else afterMorph(() => {
         if (shown === p && soundOn) startSong(p);
-      }, 120));
+      });
     } else {
       stopSong();
       afterMorph(() => ensureMusicKit().catch(() => {
