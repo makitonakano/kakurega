@@ -220,6 +220,12 @@
     named.clear();
   }
 
+  let settled = Promise.resolve();
+
+  function afterMorph(run) {
+    settled.then(() => requestAnimationFrame(() => requestAnimationFrame(run)));
+  }
+
   function morph(before, update, after) {
     if (!document.startViewTransition || reduceMotion.matches || document.visibilityState !== "visible") {
       update();
@@ -228,6 +234,8 @@
     const run = ++morphRun;
     clearNames();
     before();
+    let finish;
+    settled = new Promise((resolve) => (finish = resolve));
     const transition = document.startViewTransition(() => {
       clearNames();
       update();
@@ -235,6 +243,7 @@
     });
     transition.finished.catch(() => {}).then(() => {
       if (run === morphRun) clearNames();
+      finish();
     });
   }
 
@@ -736,9 +745,9 @@
     fitViewer();
     const large = new Image();
     large.src = src("l", p);
-    large.decode().then(() => {
+    large.decode().then(() => afterMorph(() => {
       if (shown === p) viewerImg.src = large.src;
-    }).catch(() => {});
+    })).catch(() => {});
   }
 
   const MUSICKIT = "https://js-cdn.music.apple.com/musickit/v3/musickit.js";
@@ -846,12 +855,16 @@
     chip.href = `https://music.apple.com/jp/album/${encodeURIComponent(p.music.album)}?i=${encodeURIComponent(p.music.id)}`;
     chip.setAttribute("aria-label", `${t("music")}: ${p.music.title} — ${p.music.artist}`);
     setSound(soundOn);
-    if (soundOn) startSong(p);
-    else {
-      stopSong();
-      ensureMusicKit().catch(() => {
-        soundButton.hidden = true;
+    if (soundOn) {
+      playing = p;
+      afterMorph(() => {
+        if (shown === p && soundOn) startSong(p);
       });
+    } else {
+      stopSong();
+      afterMorph(() => ensureMusicKit().catch(() => {
+        soundButton.hidden = true;
+      }));
     }
   }
 
@@ -1061,6 +1074,14 @@
   const mapTab = document.querySelector('[data-tab="map"]');
   ["pointerenter", "touchstart", "focus"].forEach((type) => mapTab.addEventListener(type, warmMap, { once: true, passive: true }));
   const saving = navigator.connection && navigator.connection.saveData;
+  if (!saving && photos.some((p) => p.music && !p.demo)) {
+    const warmMusic = () => (window.requestIdleCallback || setTimeout)(() => {
+      if (!shown) ensureMusicKit().catch(() => {});
+    }, { timeout: 4000 });
+    const soon = () => setTimeout(warmMusic, 2500);
+    if (document.readyState === "complete") soon();
+    else window.addEventListener("load", soon, { once: true });
+  }
   if (innerWidth >= 900 && !saving) {
     const later = () => setTimeout(() => (window.requestIdleCallback || setTimeout)(warmMap), 1500);
     if (document.readyState === "complete") later();
