@@ -1122,6 +1122,29 @@
     if (state.tab === "gallery" && !state.id) window.scrollTo({ top: 0, behavior: reduceMotion.matches ? "auto" : "smooth" });
   });
 
+  if (/[?&]debug\b/.test(location.search)) {
+    const box = document.createElement("pre");
+    box.style.cssText = "position:fixed;left:6px;bottom:6px;z-index:9999;max-width:calc(100vw - 12px);margin:0;padding:8px 10px;background:rgba(0,0,0,.78);color:#fff;font:11px/1.45 ui-monospace,monospace;white-space:pre-wrap;pointer-events:none";
+    document.body.append(box);
+    const probe = document.createElement("audio");
+    probe.volume = 0.5;
+    setInterval(() => {
+      const els = document.querySelectorAll("audio#apple-music-player");
+      const el = els[els.length - 1];
+      const g = el && gains.get(el);
+      const k = kitReady;
+      box.textContent = [
+        navigator.userAgent.replace(/^Mozilla\/5\.0 /, "").slice(0, 140),
+        `volumeWorks=${volumeWorks} probeVolume=${probe.volume}`,
+        `audioSession=${navigator.audioSession ? navigator.audioSession.type : "なし"}`,
+        `audioCtx=${audioCtx ? audioCtx.state : "なし"} sound=${soundOn}`,
+        `kit=${k ? `state ${k.playbackState} vol ${k.volume}` : "なし"}`,
+        `audio要素=${els.length} routed=${Boolean(g)} gain=${g ? g.gain.value.toFixed(2) : "-"}`,
+        el ? `el vol=${el.volume} muted=${el.muted} paused=${el.paused} t=${el.currentTime.toFixed(1)} co=${el.crossOrigin}` : "el なし",
+      ].join("\n");
+    }, 250);
+  }
+
   window.addEventListener("resize", fitViewer);
   window.addEventListener("resize", layoutSeason);
   window.addEventListener("hashchange", route);
