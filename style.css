@@ -23,6 +23,7 @@
   --inset: 16px;
   --row: 120px;
   --move: cubic-bezier(0.3, 0, 0.1, 1);
+  --slide-gap: 32px;
   --font-system: system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif;
   --font: var(--font-system);
   --display: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif;
@@ -731,11 +732,43 @@ figure {
 }
 
 .stage {
+  position: relative;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.track {
+  position: absolute;
+  inset: 0;
   display: grid;
   place-items: center;
-  overflow: hidden;
+}
+
+.track.sliding {
+  transition: transform 0.36s cubic-bezier(0.2, 0.7, 0.25, 1);
+}
+
+.peek {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.peek.before {
+  transform: translateX(calc(-100% - var(--slide-gap)));
+}
+
+.peek.after {
+  transform: translateX(calc(100% + var(--slide-gap)));
+}
+
+.peek img[src=""],
+.peek img:not([src]) {
+  visibility: hidden;
 }
 
 .stage img {

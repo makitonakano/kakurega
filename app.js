@@ -34,6 +34,12 @@
   const viewer = $("viewer");
   const stage = $("viewer-stage");
   const viewerImg = $("viewer-img");
+  const track = $("viewer-track");
+  const peekPrev = $("peek-prev");
+  const peekNext = $("peek-next");
+  const largeReady = new Set();
+  let skipMorph = false;
+  let sliding = false;
   const viewerA = $("viewer-a");
   const viewerB = $("viewer-b");
   const viewerMap = $("viewer-map");
@@ -714,18 +720,70 @@
     }
   }
 
+  function sizeTo(img, p) {
+    const r = stage.getBoundingClientRect();
+    const k = Math.min(r.width / p.w, r.height / p.h);
+    img.style.width = `${Math.floor(p.w * k)}px`;
+    img.style.height = `${Math.floor(p.h * k)}px`;
+  }
+
   function fitViewer() {
     if (!shown) return;
-    const r = stage.getBoundingClientRect();
-    const k = Math.min(r.width / shown.w, r.height / shown.h);
-    viewerImg.style.width = `${Math.floor(shown.w * k)}px`;
-    viewerImg.style.height = `${Math.floor(shown.h * k)}px`;
+    sizeTo(viewerImg, shown);
+    const [prev, next] = [neighbor(-1), neighbor(1)];
+    if (prev && peekPrev.getAttribute("src")) sizeTo(peekPrev, prev);
+    if (next && peekNext.getAttribute("src")) sizeTo(peekNext, next);
+  }
+
+  function neighbor(delta) {
+    if (!shown) return null;
+    const pool = poolOf(shown);
+    if (pool.length < 2) return null;
+    const i = pool.findIndex((x) => x.id === shown.id);
+    return pool[(i + delta + pool.length) % pool.length];
+  }
+
+  const bestSrc = (p) => (largeReady.has(p.id) ? src("l", p) : src("s", p));
+
+  function updatePeeks() {
+    [[peekPrev, neighbor(-1)], [peekNext, neighbor(1)]].forEach(([img, p]) => {
+      if (!p) {
+        img.removeAttribute("src");
+        img.dataset.pid = "";
+        return;
+      }
+      img.dataset.pid = p.id;
+      img.alt = label(p);
+      const want = bestSrc(p);
+      if (img.getAttribute("src") !== want) img.src = want;
+      sizeTo(img, p);
+    });
+  }
+
+  function warmLarge(p) {
+    if (largeReady.has(p.id)) return Promise.resolve();
+    const im = new Image();
+    im.src = src("l", p);
+    return im.decode().then(() => {
+      largeReady.add(p.id);
+      [peekPrev, peekNext].forEach((img) => {
+        if (img.dataset.pid === p.id) img.src = src("l", p);
+      });
+    }).catch(() => {});
+  }
+
+  function preloadAround() {
+    [neighbor(1), neighbor(-1)].forEach((p) => {
+      if (!p) return;
+      warmLarge(p);
+      warmSong(p);
+    });
   }
 
   function showPhoto(p) {
     shown = p;
     const tile = thumbs.get(p.id);
-    viewerImg.src = (tile && tile.currentSrc) || src("s", p);
+    viewerImg.src = largeReady.has(p.id) ? src("l", p) : (tile && tile.currentSrc) || src("s", p);
     viewerImg.alt = label(p);
     fillNames(viewerA, viewerB, p.name);
     const placeLink = $("viewer-place");
@@ -744,11 +802,21 @@
     nextButton.hidden = single;
     if (!viewer.open) viewer.showModal();
     fitViewer();
-    const large = new Image();
-    large.src = src("l", p);
-    large.decode().then(() => afterMorph(() => {
-      if (shown === p) viewerImg.src = large.src;
-    })).catch(() => {});
+    if (!largeReady.has(p.id)) {
+      const large = new Image();
+      large.src = src("l", p);
+      large.decode().then(() => {
+        largeReady.add(p.id);
+        afterMorph(() => {
+          if (shown === p) viewerImg.src = large.src;
+        });
+      }).catch(() => {});
+    }
+    afterMorph(() => {
+      if (shown !== p) return;
+      updatePeeks();
+      preloadAround();
+    });
   }
 
   const MUSICKIT = "https://js-cdn.music.apple.com/musickit/v3/musickit.js";
@@ -837,8 +905,19 @@
     }, 30);
   }
 
+  let songFor = null;
+  const warmed = new Set();
+
+  function warmSong(p) {
+    if (!p.music || warmed.has(p.music.id)) return;
+    warmed.add(p.music.id);
+    if (p.music.preview) fetch(p.music.preview, { mode: "no-cors" }).catch(() => {});
+    if (kitReady && kitReady.api && kitReady.api.music) kitReady.api.music(`/v1/catalog/jp/songs/${p.music.id}`).catch(() => {});
+  }
+
   function stopSong() {
     playing = null;
+    songFor = null;
     clearInterval(fadeTimer);
     document.querySelectorAll("audio#apple-music-player").forEach((el) => {
       el.muted = false;
@@ -849,6 +928,7 @@
 
   function startSong(p) {
     playing = p;
+    songFor = p;
     ensureMusicKit()
       .then((kit) => {
         if (playing !== p || !soundOn) return null;
@@ -885,11 +965,13 @@
     chip.setAttribute("aria-label", `${t("music")}: ${p.music.title} — ${p.music.artist}`);
     setSound(soundOn);
     if (soundOn) {
-      playing = p;
-      if (kitReady) startSong(p);
-      else afterMorph(() => {
-        if (shown === p && soundOn) startSong(p);
-      });
+      if (songFor !== p) {
+        playing = p;
+        if (kitReady) startSong(p);
+        else afterMorph(() => {
+          if (shown === p && soundOn) startSong(p);
+        });
+      }
     } else {
       stopSong();
       afterMorph(() => ensureMusicKit().catch(() => {
@@ -953,6 +1035,11 @@
       return;
     }
     if (prev.tab === next.tab && prev.id === next.id && !focus) return;
+    if (skipMorph) {
+      skipMorph = false;
+      apply(next, focus);
+      return;
+    }
     morph(
       () => {
         if (prev.id) setName(viewerImg, "photo");
@@ -983,22 +1070,75 @@
     }
   }
 
+  function goTo(p) {
+    skipMorph = true;
+    history.replaceState(null, "", `#${state.tab}/${p.id}`);
+    route();
+  }
+
+  function settleTrack() {
+    track.classList.remove("sliding");
+    track.style.transform = "";
+    sliding = false;
+    updatePeeks();
+  }
+
+  function slideTo(delta, from = 0) {
+    const next = neighbor(delta);
+    if (!next || sliding) return;
+    sliding = true;
+    unlockAudio();
+    if (soundOn && next.music && kitReady) startSong(next);
+    else if (soundOn && !next.music) stopSong();
+    const width = stage.getBoundingClientRect().width;
+    const gap = parseFloat(getComputedStyle(stage).getPropertyValue("--slide-gap")) || 32;
+    const distance = -delta * (width + gap);
+    track.classList.add("sliding");
+    const remaining = Math.abs(distance - from) / Math.abs(distance);
+    track.style.transitionDuration = `${Math.max(0.16, 0.36 * remaining)}s`;
+    requestAnimationFrame(() => {
+      track.style.transform = `translateX(${distance}px)`;
+    });
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      track.style.transitionDuration = "";
+      goTo(next);
+      viewerImg.decode().catch(() => {}).then(() => requestAnimationFrame(settleTrack));
+    };
+    track.addEventListener("transitionend", finish, { once: true });
+    setTimeout(finish, 520);
+  }
+
+  function snapBack() {
+    track.classList.add("sliding");
+    track.style.transform = "";
+    const clear = () => track.classList.remove("sliding");
+    track.addEventListener("transitionend", clear, { once: true });
+    setTimeout(clear, 420);
+  }
+
   function step(delta) {
     if (!state.id) return;
     const pool = poolOf(byId.get(state.id));
     if (pool.length < 2) return;
+    if (!reduceMotion.matches) return slideTo(delta);
     const i = pool.findIndex((p) => p.id === state.id);
-    const next = pool[(i + delta + pool.length) % pool.length];
-    history.replaceState(null, "", `#${state.tab}/${next.id}`);
-    route();
+    goTo(pool[(i + delta + pool.length) % pool.length]);
   }
 
   viewer.addEventListener("cancel", (e) => {
     e.preventDefault();
     closeViewer();
   });
+  let dragged = false;
   viewer.addEventListener("click", (e) => {
-    if (e.target === viewer || e.target === stage || ["FIGURE", "FIGCAPTION"].includes(e.target.tagName)) closeViewer();
+    if (dragged) {
+      dragged = false;
+      return;
+    }
+    if (e.target === viewer || e.target === stage || e.target === track || e.target.classList.contains("peek") || e.target.classList.contains("shot") || ["FIGURE", "FIGCAPTION"].includes(e.target.tagName)) closeViewer();
   });
   viewer.addEventListener("keydown", (e) => {
     if (e.key === "ArrowLeft") step(-1);
@@ -1019,18 +1159,59 @@
     openedHere = false;
   });
 
-  let touch = null;
-  viewer.addEventListener("touchstart", (e) => {
-    touch = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
-  }, { passive: true });
-  viewer.addEventListener("touchend", (e) => {
-    if (!touch) return;
-    const dx = e.changedTouches[0].clientX - touch.x;
-    const dy = e.changedTouches[0].clientY - touch.y;
-    touch = null;
-    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) step(dx < 0 ? 1 : -1);
-    else if (dy > 90 && dy > Math.abs(dx) * 1.5) closeViewer();
-  }, { passive: true });
+  let drag = null;
+  stage.addEventListener("pointerdown", (e) => {
+    if (sliding || (e.pointerType === "mouse" && e.button !== 0) || e.target.closest(".sound")) return;
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), mode: null, dx: 0, dy: 0, lastX: e.clientX, lastT: performance.now(), v: 0 };
+  });
+  stage.addEventListener("pointermove", (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    drag.dx = e.clientX - drag.x;
+    drag.dy = e.clientY - drag.y;
+    const now = performance.now();
+    if (now > drag.lastT) drag.v = 0.8 * ((e.clientX - drag.lastX) / (now - drag.lastT)) + 0.2 * drag.v;
+    drag.lastX = e.clientX;
+    drag.lastT = now;
+    if (!drag.mode) {
+      if (Math.abs(drag.dx) > 8 && Math.abs(drag.dx) > Math.abs(drag.dy)) drag.mode = "x";
+      else if (Math.abs(drag.dy) > 10) drag.mode = "y";
+      else return;
+      stage.setPointerCapture(e.pointerId);
+      track.classList.remove("sliding");
+    }
+    if (drag.mode === "x") {
+      const edge = neighbor(drag.dx < 0 ? 1 : -1) ? 1 : 0.3;
+      track.style.transform = `translateX(${drag.dx * edge}px)`;
+    } else if (drag.dy > 0) {
+      track.style.transform = `translateY(${drag.dy * 0.6}px)`;
+      track.style.opacity = String(Math.max(0.4, 1 - drag.dy / 600));
+    }
+  });
+  const endDrag = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const d = drag;
+    drag = null;
+    if (!d.mode) return;
+    dragged = true;
+    setTimeout(() => {
+      dragged = false;
+    }, 50);
+    track.style.opacity = "";
+    if (d.mode === "x") {
+      const width = stage.getBoundingClientRect().width;
+      const fling = Math.abs(d.v) > 0.45 && Math.sign(d.v) === Math.sign(d.dx);
+      const delta = d.dx < 0 ? 1 : -1;
+      if ((Math.abs(d.dx) > width * 0.22 || fling) && neighbor(delta)) slideTo(delta, d.dx);
+      else snapBack();
+    } else if (d.dy > 110) {
+      track.style.transform = "";
+      closeViewer();
+    } else {
+      snapBack();
+    }
+  };
+  stage.addEventListener("pointerup", endDrag);
+  stage.addEventListener("pointercancel", endDrag);
 
   function applyLang() {
     document.documentElement.lang = lang;
