@@ -13,7 +13,7 @@
 <meta property="og:image" content="https://makitonakano.github.io/kakurega/img/l/tennozaki-park.webp">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preload" href="fonts/title.woff2?v=575d8513" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=417ca888">
+<link rel="stylesheet" href="style.css?v=f880e0ab">
 </head>
 <body>
 <header class="bar">
@@ -96,17 +96,13 @@
   </button>
   <figure tabindex="-1" autofocus>
     <div class="stage" id="viewer-stage">
-      <div class="track" id="viewer-track">
-      <div class="peek before"><img id="peek-prev" alt="" decoding="async"></div>
-      <div class="peek after"><img id="peek-next" alt="" decoding="async"></div>
-      <div class="shot">
-        <img id="viewer-img" alt="">
-        <button type="button" class="sound" id="sound" aria-pressed="false" hidden>
-          <svg class="sound-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4zM16 9.5l5 5M21 9.5l-5 5"/></svg>
-          <svg class="sound-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4zM15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/></svg>
-        </button>
-      </div>
-      </div>
+      <div class="slot"><div class="shot"><img alt="" decoding="async"></div></div>
+      <div class="slot"><div class="shot"><img id="viewer-img" alt="" decoding="async"></div></div>
+      <div class="slot"><div class="shot"><img alt="" decoding="async"></div></div>
+      <button type="button" class="sound" id="sound" aria-pressed="false" hidden>
+        <svg class="sound-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4zM16 9.5l5 5M21 9.5l-5 5"/></svg>
+        <svg class="sound-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4zM15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/></svg>
+      </button>
     </div>
     <figcaption>
       <div class="caption-row">
@@ -127,6 +123,6 @@
 
 <script src="i18n.js?v=bd05a711"></script>
 <script src="data.js?v=dd183fb4"></script>
-<script src="app.js?v=aa4dd20e"></script>
+<script src="app.js?v=cc9fc566"></script>
 </body>
 </html>

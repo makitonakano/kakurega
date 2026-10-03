@@ -33,10 +33,10 @@
   const tabLinks = [...document.querySelectorAll("[data-tab]")];
   const viewer = $("viewer");
   const stage = $("viewer-stage");
-  const viewerImg = $("viewer-img");
-  const track = $("viewer-track");
-  const peekPrev = $("peek-prev");
-  const peekNext = $("peek-next");
+  const slots = [...stage.querySelectorAll(".slot")];
+  const imgOf = (slot) => slot.querySelector("img");
+  let order = slots.slice();
+  let viewerImg = imgOf(order[1]);
   const largeReady = new Set();
   let skipMorph = false;
   let sliding = false;
@@ -727,12 +727,36 @@
     img.style.height = `${Math.floor(p.h * k)}px`;
   }
 
+  function slideGap() {
+    return parseFloat(getComputedStyle(stage).getPropertyValue("--slide-gap")) || 32;
+  }
+
+  function place(dx = 0, dy = 0) {
+    const span = stage.getBoundingClientRect().width + slideGap();
+    order.forEach((slot, i) => {
+      slot.style.transform = `translate3d(${(i - 1) * span + dx}px, ${i === 1 ? dy : 0}px, 0)`;
+      slot.style.opacity = i === 1 && dy ? String(Math.max(0.4, 1 - dy / 600)) : "";
+    });
+  }
+
+  function placeSound() {
+    if (!shown) return;
+    const r = stage.getBoundingClientRect();
+    const w = parseFloat(viewerImg.style.width) || 0;
+    const h = parseFloat(viewerImg.style.height) || 0;
+    soundButton.style.setProperty("--sound-x", `${Math.round((r.width - w) / 2 + 12)}px`);
+    soundButton.style.setProperty("--sound-y", `${Math.round((r.height - h) / 2 + 12)}px`);
+  }
+
   function fitViewer() {
     if (!shown) return;
+    order.forEach((slot) => {
+      const p = byId.get(imgOf(slot).dataset.pid);
+      if (p) sizeTo(imgOf(slot), p);
+    });
     sizeTo(viewerImg, shown);
-    const [prev, next] = [neighbor(-1), neighbor(1)];
-    if (prev && peekPrev.getAttribute("src")) sizeTo(peekPrev, prev);
-    if (next && peekNext.getAttribute("src")) sizeTo(peekNext, next);
+    place();
+    placeSound();
   }
 
   function neighbor(delta) {
@@ -746,16 +770,17 @@
   const bestSrc = (p) => (largeReady.has(p.id) ? src("l", p) : src("s", p));
 
   function updatePeeks() {
-    [[peekPrev, neighbor(-1)], [peekNext, neighbor(1)]].forEach(([img, p]) => {
+    [[imgOf(order[0]), neighbor(-1)], [imgOf(order[2]), neighbor(1)]].forEach(([img, p]) => {
       if (!p) {
         img.removeAttribute("src");
         img.dataset.pid = "";
         return;
       }
-      img.dataset.pid = p.id;
-      img.alt = label(p);
-      const want = bestSrc(p);
-      if (img.getAttribute("src") !== want) img.src = want;
+      if (img.dataset.pid !== p.id || img.getAttribute("src") !== bestSrc(p)) {
+        img.dataset.pid = p.id;
+        img.alt = label(p);
+        img.src = bestSrc(p);
+      }
       sizeTo(img, p);
     });
   }
@@ -766,8 +791,9 @@
     im.src = src("l", p);
     return im.decode().then(() => {
       largeReady.add(p.id);
-      [peekPrev, peekNext].forEach((img) => {
-        if (img.dataset.pid === p.id) img.src = src("l", p);
+      order.forEach((slot) => {
+        const img = imgOf(slot);
+        if (img.dataset.pid === p.id && img !== viewerImg) img.src = src("l", p);
       });
     }).catch(() => {});
   }
@@ -783,7 +809,10 @@
   function showPhoto(p) {
     shown = p;
     const tile = thumbs.get(p.id);
-    viewerImg.src = largeReady.has(p.id) ? src("l", p) : (tile && tile.currentSrc) || src("s", p);
+    if (viewerImg.dataset.pid !== p.id || !viewerImg.getAttribute("src")) {
+      viewerImg.dataset.pid = p.id;
+      viewerImg.src = largeReady.has(p.id) ? src("l", p) : (tile && tile.currentSrc) || src("s", p);
+    }
     viewerImg.alt = label(p);
     fillNames(viewerA, viewerB, p.name);
     const placeLink = $("viewer-place");
@@ -1076,47 +1105,54 @@
     route();
   }
 
-  function settleTrack() {
-    track.classList.remove("sliding");
-    track.style.transform = "";
-    sliding = false;
-    updatePeeks();
+  const EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
+
+  function animateSlots(fromDx, toDx, duration) {
+    const span = stage.getBoundingClientRect().width + slideGap();
+    const runs = order.map((slot, i) => slot.animate(
+      [{ transform: `translate3d(${(i - 1) * span + fromDx}px, 0, 0)` }, { transform: `translate3d(${(i - 1) * span + toDx}px, 0, 0)` }],
+      { duration, easing: EASE, fill: "forwards" },
+    ));
+    return { runs, done: Promise.all(runs.map((r) => r.finished)).catch(() => {}) };
   }
 
-  function slideTo(delta, from = 0) {
+  function showSound(on) {
+    soundButton.style.opacity = on ? "" : "0";
+  }
+
+  function slideTo(delta, from = 0, velocity = 0) {
     const next = neighbor(delta);
     if (!next || sliding) return;
     sliding = true;
     unlockAudio();
     if (soundOn && next.music && kitReady) startSong(next);
     else if (soundOn && !next.music) stopSong();
-    const width = stage.getBoundingClientRect().width;
-    const gap = parseFloat(getComputedStyle(stage).getPropertyValue("--slide-gap")) || 32;
-    const distance = -delta * (width + gap);
-    track.classList.add("sliding");
-    const remaining = Math.abs(distance - from) / Math.abs(distance);
-    track.style.transitionDuration = `${Math.max(0.16, 0.36 * remaining)}s`;
-    requestAnimationFrame(() => {
-      track.style.transform = `translateX(${distance}px)`;
-    });
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      track.style.transitionDuration = "";
+    showSound(false);
+    const span = stage.getBoundingClientRect().width + slideGap();
+    const target = -delta * span;
+    const speed = Math.max(Math.abs(velocity), 1.3);
+    const duration = Math.round(Math.min(340, Math.max(200, Math.abs(target - from) / speed)));
+    const { runs, done } = animateSlots(from, target, duration);
+    done.then(() => {
+      order = delta > 0 ? [order[1], order[2], order[0]] : [order[2], order[0], order[1]];
+      viewerImg = imgOf(order[1]);
+      place();
+      runs.forEach((r) => r.cancel());
+      sliding = false;
       goTo(next);
-      viewerImg.decode().catch(() => {}).then(() => requestAnimationFrame(settleTrack));
-    };
-    track.addEventListener("transitionend", finish, { once: true });
-    setTimeout(finish, 520);
+      updatePeeks();
+      placeSound();
+      showSound(true);
+    });
   }
 
-  function snapBack() {
-    track.classList.add("sliding");
-    track.style.transform = "";
-    const clear = () => track.classList.remove("sliding");
-    track.addEventListener("transitionend", clear, { once: true });
-    setTimeout(clear, 420);
+  function snapBack(from) {
+    const { runs, done } = animateSlots(from, 0, 240);
+    done.then(() => {
+      place();
+      runs.forEach((r) => r.cancel());
+      showSound(true);
+    });
   }
 
   function step(delta) {
@@ -1138,7 +1174,7 @@
       dragged = false;
       return;
     }
-    if (e.target === viewer || e.target === stage || e.target === track || e.target.classList.contains("peek") || e.target.classList.contains("shot") || ["FIGURE", "FIGCAPTION"].includes(e.target.tagName)) closeViewer();
+    if (e.target === viewer || e.target === stage || e.target.classList.contains("slot") || ["FIGURE", "FIGCAPTION"].includes(e.target.tagName)) closeViewer();
   });
   viewer.addEventListener("keydown", (e) => {
     if (e.key === "ArrowLeft") step(-1);
@@ -1177,14 +1213,14 @@
       else if (Math.abs(drag.dy) > 10) drag.mode = "y";
       else return;
       stage.setPointerCapture(e.pointerId);
-      track.classList.remove("sliding");
+      showSound(false);
     }
     if (drag.mode === "x") {
       const edge = neighbor(drag.dx < 0 ? 1 : -1) ? 1 : 0.3;
-      track.style.transform = `translateX(${drag.dx * edge}px)`;
+      drag.shown = drag.dx * edge;
+      place(drag.shown);
     } else if (drag.dy > 0) {
-      track.style.transform = `translateY(${drag.dy * 0.6}px)`;
-      track.style.opacity = String(Math.max(0.4, 1 - drag.dy / 600));
+      place(0, drag.dy * 0.6);
     }
   });
   const endDrag = (e) => {
@@ -1196,18 +1232,19 @@
     setTimeout(() => {
       dragged = false;
     }, 50);
-    track.style.opacity = "";
     if (d.mode === "x") {
       const width = stage.getBoundingClientRect().width;
-      const fling = Math.abs(d.v) > 0.45 && Math.sign(d.v) === Math.sign(d.dx);
+      const fling = Math.abs(d.v) > 0.35 && Math.sign(d.v) === Math.sign(d.dx);
       const delta = d.dx < 0 ? 1 : -1;
-      if ((Math.abs(d.dx) > width * 0.22 || fling) && neighbor(delta)) slideTo(delta, d.dx);
-      else snapBack();
+      const from = d.shown || 0;
+      if ((Math.abs(d.dx) > width * 0.22 || fling) && neighbor(delta)) slideTo(delta, from, d.v);
+      else snapBack(from);
     } else if (d.dy > 110) {
-      track.style.transform = "";
+      place();
       closeViewer();
     } else {
-      snapBack();
+      place();
+      showSound(true);
     }
   };
   stage.addEventListener("pointerup", endDrag);
