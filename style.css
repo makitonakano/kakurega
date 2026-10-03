@@ -718,6 +718,7 @@ figure {
   margin: 0;
   height: 100%;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
   padding: calc(56px + env(safe-area-inset-top)) 16px env(safe-area-inset-bottom);
 }
@@ -785,7 +786,9 @@ figure {
 }
 
 figcaption {
+  min-width: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: center;
   justify-items: center;
   min-height: 64px;
@@ -793,7 +796,9 @@ figcaption {
 }
 
 .music {
+  min-width: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: center;
   width: 100%;
   margin: 2px 0 4px;
@@ -803,6 +808,7 @@ figcaption {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
   max-width: min(420px, 100%);
   height: 40px;
   padding: 0 12px 0 0;
@@ -824,15 +830,26 @@ figcaption {
 }
 
 .music-text {
+  flex: 0 1 auto;
   display: flex;
   gap: 8px;
   min-width: 0;
+  overflow: hidden;
   white-space: nowrap;
 }
 
 .music-text span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.music-text span:first-child {
+  flex: 0 1 auto;
+}
+
+.music-text span:last-child {
+  flex: 0 2 auto;
 }
 
 .music-badge {
@@ -846,6 +863,8 @@ figcaption {
 }
 
 .caption-row {
+  max-width: 100%;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;

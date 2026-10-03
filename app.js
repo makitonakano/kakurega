@@ -1,8 +1,9 @@
 (() => {
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const volumeWorks = (() => {
     const probe = document.createElement("audio");
     probe.volume = 0.5;
-    return probe.volume === 0.5 && !/[?&]webaudio\b/.test(location.search);
+    return probe.volume === 0.5 && !isIOS && !/[?&]webaudio\b/.test(location.search);
   })();
   if (!volumeWorks) {
     const create = document.createElement.bind(document);
@@ -803,13 +804,45 @@
   }
 
   let audioCtx = null;
+  let keepAlive = null;
   const gains = new WeakMap();
+
+  function silentLoop() {
+    const rate = 8000;
+    const samples = rate / 4;
+    const view = new DataView(new ArrayBuffer(44 + samples));
+    const text = (at, value) => [...value].forEach((c, i) => view.setUint8(at + i, c.charCodeAt(0)));
+    text(0, "RIFF");
+    view.setUint32(4, 36 + samples, true);
+    text(8, "WAVEfmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, rate, true);
+    view.setUint32(28, rate, true);
+    view.setUint16(32, 1, true);
+    view.setUint16(34, 8, true);
+    text(36, "data");
+    view.setUint32(40, samples, true);
+    for (let i = 0; i < samples; i++) view.setUint8(44 + i, 128);
+    const el = document.createElement("audio");
+    el.removeAttribute("crossorigin");
+    el.loop = true;
+    el.setAttribute("playsinline", "");
+    el.setAttribute("x-webkit-airplay", "deny");
+    el.src = URL.createObjectURL(new Blob([view.buffer], { type: "audio/wav" }));
+    return el;
+  }
 
   function unlockAudio() {
     if (!volumeWorks) {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (Ctx && !audioCtx) audioCtx = new Ctx();
       if (audioCtx && audioCtx.state !== "running") audioCtx.resume().catch(() => {});
+      if (isIOS) {
+        keepAlive = keepAlive || silentLoop();
+        if (keepAlive.paused) keepAlive.play().catch(() => {});
+      }
     }
     if (!kitReady) return;
     try {
@@ -848,6 +881,7 @@
 
   function setSound(on) {
     soundOn = on;
+    if (!on && keepAlive) keepAlive.pause();
     soundButton.setAttribute("aria-pressed", String(on));
     soundButton.setAttribute("aria-label", on ? t("mute") : t("unmute"));
     try {
@@ -1135,7 +1169,8 @@
       const k = kitReady;
       box.textContent = [
         navigator.userAgent.replace(/^Mozilla\/5\.0 /, "").slice(0, 140),
-        `volumeWorks=${volumeWorks} probeVolume=${probe.volume}`,
+        `iOS=${isIOS} volumeWorks=${volumeWorks} probeVolume=${probe.volume}`,
+        `無音ループ=${keepAlive ? (keepAlive.paused ? "停止" : "再生中") : "なし"}`,
         `audioSession=${navigator.audioSession ? navigator.audioSession.type : "なし"}`,
         `audioCtx=${audioCtx ? audioCtx.state : "なし"} sound=${soundOn}`,
         `kit=${k ? `state ${k.playbackState} vol ${k.volume}` : "なし"}`,
