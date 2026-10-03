@@ -755,6 +755,7 @@
   const soundButton = $("sound");
   let soundOn = false;
   let musicKit = null;
+  let kitReady = null;
   let playing = null;
 
   try {
@@ -771,11 +772,12 @@
           const ready = new Promise((resolve) => (window.MusicKit ? resolve() : document.addEventListener("musickitloaded", resolve, { once: true })));
           return loadFile("script", { src: MUSICKIT, async: true }).then(() => ready);
         })
-        .then(() => MusicKit.configure({ developerToken: window.MUSIC_TOKEN.token, app: { name: "KAKUREGA", build: "1.0" }, storefrontId: "jp" }))
+        .then(() => MusicKit.configure({ developerToken: window.MUSIC_TOKEN.token, app: { name: "KAKUREGA", build: "1.0" }, storefrontId: "jp", suppressErrorDialog: true }))
         .then((mk) => {
           const kit = mk || MusicKit.getInstance();
           kit.previewOnly = true;
           if (MusicKit.PlayerRepeatMode) kit.repeatMode = MusicKit.PlayerRepeatMode.one;
+          kitReady = kit;
           return kit;
         })
         .catch((error) => {
@@ -784,6 +786,15 @@
         });
     }
     return musicKit;
+  }
+
+  function unlockAudio() {
+    if (!kitReady) return;
+    try {
+      kitReady.deferPlayback();
+    } catch (e) {
+      return;
+    }
   }
 
   function setSound(on) {
@@ -857,9 +868,9 @@
     setSound(soundOn);
     if (soundOn) {
       playing = p;
-      afterMorph(() => {
+      afterMorph(() => setTimeout(() => {
         if (shown === p && soundOn) startSong(p);
-      });
+      }, 120));
     } else {
       stopSong();
       afterMorph(() => ensureMusicKit().catch(() => {
@@ -870,6 +881,7 @@
 
   function toggleSound() {
     if (!shown || !shown.music) return;
+    unlockAudio();
     setSound(!soundOn);
     if (soundOn) startSong(shown);
     else stopSong();
@@ -974,6 +986,9 @@
     if (e.key === "ArrowRight") step(1);
   });
   $("viewer-close").addEventListener("click", closeViewer);
+  ["click", "touchend", "keydown"].forEach((type) => document.addEventListener(type, () => {
+    if (soundOn) unlockAudio();
+  }, { capture: true, passive: true }));
   soundButton.addEventListener("click", (e) => {
     e.stopPropagation();
     toggleSound();
