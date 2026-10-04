@@ -766,6 +766,22 @@ figure {
 
 .shot {
   position: relative;
+  transform-origin: center;
+}
+
+.full figure {
+  --cap: 0px;
+  padding: 0;
+}
+
+.full figcaption,
+.full .icon,
+.full .sound {
+  display: none;
+}
+
+.fulling .slot img {
+  transition: width 0.28s ease-out, height 0.28s ease-out;
 }
 
 .sound {
@@ -913,25 +929,45 @@ figcaption.off {
 
 .music-text {
   flex: 0 1 auto;
-  display: flex;
-  gap: 8px;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
 }
 
-.music-text span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.music-track {
+  display: inline-flex;
+  gap: 8px;
 }
 
-.music-text span:first-child {
-  flex: 0 1 auto;
+.music-track .copy {
+  display: inline-flex;
+  gap: 8px;
+  margin-left: 40px;
 }
 
-.music-text span:last-child {
-  flex: 0 2 auto;
+.music-text.flow {
+  mask-image: linear-gradient(to right, transparent, #000 8px, #000 calc(100% - 8px), transparent);
+}
+
+.music-text.flow .music-track {
+  animation: flow var(--dur, 10s) linear infinite;
+}
+
+@keyframes flow {
+  0%,
+  18% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  100% {
+    transform: translate3d(var(--run), 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .music-text.flow .music-track {
+    animation: none;
+  }
 }
 
 .music-badge {

@@ -770,6 +770,68 @@
     sizeTo(viewerImg, shown);
     place();
     placeSound();
+    applyZoom();
+    if (shown.music) flowTitle();
+  }
+
+  const zoom = { on: false, s: 1, x: 0, y: 0 };
+  let zoomTimer = 0;
+
+  function shotOf(img) {
+    return img.parentElement;
+  }
+
+  function applyZoom() {
+    const shot = shotOf(viewerImg);
+    shot.style.transform = zoom.s > 1 ? `translate3d(${zoom.x}px, ${zoom.y}px, 0) scale(${zoom.s})` : "";
+  }
+
+  function clampZoom() {
+    const r = stage.getBoundingClientRect();
+    const w = parseFloat(viewerImg.style.width) || 0;
+    const h = parseFloat(viewerImg.style.height) || 0;
+    const bx = Math.max(0, (w * zoom.s - r.width) / 2);
+    const by = Math.max(0, (h * zoom.s - (r.height - capSpace())) / 2);
+    zoom.x = Math.max(-bx, Math.min(bx, zoom.x));
+    zoom.y = Math.max(-by, Math.min(by, zoom.y));
+  }
+
+  function resetZoom() {
+    zoom.s = 1;
+    zoom.x = 0;
+    zoom.y = 0;
+    order.forEach((slot) => {
+      shotOf(imgOf(slot)).style.transform = "";
+    });
+  }
+
+  function setZoomMode(on) {
+    if (zoom.on === on) return;
+    zoom.on = on;
+    resetZoom();
+    viewer.classList.toggle("full", on);
+    if (!reduceMotion.matches) {
+      viewer.classList.add("fulling");
+      clearTimeout(zoomTimer);
+      zoomTimer = setTimeout(() => {
+        viewer.classList.remove("fulling");
+        fitViewer();
+      }, 320);
+    }
+    fitViewer();
+  }
+
+  function zoomAt(x, y, scale) {
+    const r = stage.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + (r.height - capSpace()) / 2;
+    const px = (x - cx - zoom.x) / zoom.s;
+    const py = (y - cy - zoom.y) / zoom.s;
+    zoom.s = Math.max(1, Math.min(4, scale));
+    zoom.x = x - cx - px * zoom.s;
+    zoom.y = y - cy - py * zoom.s;
+    clampZoom();
+    applyZoom();
   }
 
   function neighbor(delta) {
@@ -821,6 +883,7 @@
 
   function showPhoto(p) {
     shown = p;
+    resetZoom();
     const tile = thumbs.get(p.id);
     if (viewerImg.dataset.pid !== p.id || !viewerImg.getAttribute("src")) {
       viewerImg.dataset.pid = p.id;
@@ -1005,6 +1068,34 @@
       });
   }
 
+  let flowFrame = 0;
+
+  function flowTitle() {
+    const text = viewer.querySelector(".music-text");
+    const track = $("music-track");
+    track.querySelectorAll(".copy").forEach((el) => el.remove());
+    text.classList.remove("flow");
+    track.style.animation = "none";
+    cancelAnimationFrame(flowFrame);
+    flowFrame = requestAnimationFrame(() => {
+      track.style.animation = "";
+      if (!shown || !shown.music) return;
+      const width = track.scrollWidth;
+      if (width - text.clientWidth <= 2) return;
+      const copy = document.createElement("span");
+      copy.className = "copy";
+      [...track.children].forEach((el) => {
+        const c = el.cloneNode(true);
+        c.removeAttribute("id");
+        copy.appendChild(c);
+      });
+      track.appendChild(copy);
+      text.style.setProperty("--run", `${-(width + 40)}px`);
+      text.style.setProperty("--dur", `${Math.round((width + 40) / 35 + 2)}s`);
+      text.classList.add("flow");
+    });
+  }
+
   function showMusic(p) {
     const box = $("viewer-music");
     const chip = $("music-chip");
@@ -1017,6 +1108,7 @@
     $("music-art").src = p.music.art || "";
     $("music-title").textContent = p.music.title;
     $("music-artist").textContent = p.music.artist;
+    flowTitle();
     chip.href = `https://music.apple.com/jp/album/${encodeURIComponent(p.music.album)}?i=${encodeURIComponent(p.music.id)}`;
     chip.setAttribute("aria-label", `${t("music")}: ${p.music.title} — ${p.music.artist}`);
     setSound(soundOn);
@@ -1044,6 +1136,7 @@
 
   function hidePhoto() {
     stopSong();
+    setZoomMode(false);
     shown = null;
     if (viewer.open) viewer.close();
   }
@@ -1202,7 +1295,10 @@
       dragged = false;
       return;
     }
-    if (e.target === viewer || e.target === stage || e.target.classList.contains("slot") || ["FIGURE", "FIGCAPTION"].includes(e.target.tagName)) closeViewer();
+    if (e.target === viewer || e.target === stage || e.target.classList.contains("slot") || ["FIGURE", "FIGCAPTION"].includes(e.target.tagName)) {
+      if (zoom.on) setZoomMode(false);
+      else closeViewer();
+    }
   });
   viewer.addEventListener("keydown", (e) => {
     if (e.key === "ArrowLeft") step(-1);
@@ -1224,12 +1320,83 @@
   });
 
   let drag = null;
+  let pinch = null;
+  const pointers = new Map();
+  let lastTap = null;
+  let tapTimer = 0;
+
+  function tapOnPhoto(e, d) {
+    if (!d.onPhoto) return;
+    const now = performance.now();
+    if (lastTap && now - lastTap.t < 320 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30) {
+      clearTimeout(tapTimer);
+      lastTap = null;
+      if (!zoom.on) setZoomMode(true);
+      zoomAt(e.clientX, e.clientY, zoom.s > 1 ? 1 : 2.5);
+      return;
+    }
+    lastTap = { t: now, x: e.clientX, y: e.clientY };
+    clearTimeout(tapTimer);
+    tapTimer = setTimeout(() => {
+      lastTap = null;
+      if (!zoom.on) setZoomMode(true);
+      else if (zoom.s <= 1) setZoomMode(false);
+    }, 320);
+  }
+
+  function pinchStart() {
+    const [a, b] = [...pointers.values()];
+    if (!zoom.on) setZoomMode(true);
+    pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), s: zoom.s, x: zoom.x, y: zoom.y, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+  }
+
+  function pinchMove() {
+    const [a, b] = [...pointers.values()];
+    const r = stage.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + (r.height - capSpace()) / 2;
+    const mx = (a.x + b.x) / 2;
+    const my = (a.y + b.y) / 2;
+    const px = (pinch.mx - cx - pinch.x) / pinch.s;
+    const py = (pinch.my - cy - pinch.y) / pinch.s;
+    zoom.s = Math.max(1, Math.min(4, pinch.s * Math.hypot(a.x - b.x, a.y - b.y) / Math.max(1, pinch.d)));
+    zoom.x = mx - cx - px * zoom.s;
+    zoom.y = my - cy - py * zoom.s;
+    clampZoom();
+    applyZoom();
+  }
+
   stage.addEventListener("pointerdown", (e) => {
     if (sliding || (e.pointerType === "mouse" && e.button !== 0) || e.target.closest(".sound")) return;
-    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), mode: null, dx: 0, dy: 0, lastX: e.clientX, lastT: performance.now(), v: 0 };
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    stage.setPointerCapture(e.pointerId);
+    if (pointers.size === 2 && e.target.closest(".shot")) {
+      if (drag && drag.mode === "x") place();
+      drag = null;
+      pinchStart();
+      return;
+    }
+    if (pointers.size > 1) return;
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), mode: zoom.s > 1 ? "pan" : null, onPhoto: e.target === viewerImg, dx: 0, dy: 0, lastX: e.clientX, lastY: e.clientY, lastT: performance.now(), v: 0 };
   });
   stage.addEventListener("pointermove", (e) => {
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch) {
+      if (pointers.size >= 2) pinchMove();
+      return;
+    }
     if (!drag || e.pointerId !== drag.id) return;
+    if (drag.mode === "pan") {
+      zoom.x += e.clientX - drag.lastX;
+      zoom.y += e.clientY - drag.lastY;
+      drag.lastX = e.clientX;
+      drag.lastY = e.clientY;
+      drag.dx = e.clientX - drag.x;
+      drag.dy = e.clientY - drag.y;
+      clampZoom();
+      applyZoom();
+      return;
+    }
     drag.dx = e.clientX - drag.x;
     drag.dy = e.clientY - drag.y;
     const now = performance.now();
@@ -1240,7 +1407,6 @@
       if (Math.abs(drag.dx) > 8 && Math.abs(drag.dx) > Math.abs(drag.dy)) drag.mode = "x";
       else if (Math.abs(drag.dy) > 10) drag.mode = "y";
       else return;
-      stage.setPointerCapture(e.pointerId);
       showSound(false);
     }
     if (drag.mode === "x") {
@@ -1252,10 +1418,35 @@
     }
   });
   const endDrag = (e) => {
+    pointers.delete(e.pointerId);
+    if (pinch) {
+      if (pointers.size < 2) {
+        pinch = null;
+        if (zoom.s <= 1.02) {
+          zoom.s = 1;
+          zoom.x = 0;
+          zoom.y = 0;
+          applyZoom();
+        }
+      }
+      return;
+    }
     if (!drag || e.pointerId !== drag.id) return;
     const d = drag;
     drag = null;
-    if (!d.mode) return;
+    if (d.mode === "pan") {
+      if (Math.hypot(d.dx, d.dy) > 6) {
+        dragged = true;
+        setTimeout(() => {
+          dragged = false;
+        }, 50);
+      } else if (e.type === "pointerup") tapOnPhoto(e, d);
+      return;
+    }
+    if (!d.mode) {
+      if (e.type === "pointerup") tapOnPhoto(e, d);
+      return;
+    }
     dragged = true;
     setTimeout(() => {
       dragged = false;
