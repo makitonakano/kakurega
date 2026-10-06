@@ -1813,6 +1813,13 @@
     if (state.tab === "gallery" && !state.id) window.scrollTo({ top: 0, behavior: reduceMotion.matches ? "auto" : "smooth" });
   });
 
+  const PHOTO_AREA = "img, .grid a, .slide, .hero-photo, .pin, .stage";
+  document.addEventListener("contextmenu", (e) => {
+    if (e.target.closest && e.target.closest(PHOTO_AREA)) e.preventDefault();
+  });
+  document.addEventListener("dragstart", (e) => {
+    if (e.target.closest && e.target.closest(PHOTO_AREA)) e.preventDefault();
+  });
   window.addEventListener("resize", fitViewer);
   window.addEventListener("resize", () => {
     if (field) drawField();

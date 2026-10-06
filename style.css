@@ -74,6 +74,21 @@ a {
   text-decoration: none;
 }
 
+img {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.grid a,
+.slide,
+.hero-photo,
+.pin,
+.stage {
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
 .b {
   font-weight: 400;
   color: var(--quiet);
