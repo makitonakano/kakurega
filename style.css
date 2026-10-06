@@ -15,7 +15,7 @@
 :root {
   --paper: #fff;
   --ink: #000;
-  --quiet: #8c8c8c;
+  --quiet: #767676;
   --hold: #f1f1f1;
   --bar: 56px;
   --gap: 3px;
@@ -166,7 +166,7 @@ a {
   place-items: center;
   width: 44px;
   height: 44px;
-  color: #b4b4b4;
+  color: #949494;
   transition: color 0.14s ease-out;
 }
 
@@ -437,7 +437,7 @@ a {
   content: "";
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.36);
+  background: rgba(0, 0, 0, 0.54);
 }
 
 .hero-photo:focus-visible {
@@ -572,12 +572,31 @@ a {
   inset: 0;
 }
 
+.pin-field {
+  position: absolute;
+  inset: 0;
+}
+
+.pin-field > div {
+  position: absolute;
+}
+
+.pin-field > div:hover,
+.pin-field > div:focus-within {
+  z-index: 2;
+}
+
+#view-map:not(.ready) .zoom {
+  display: none;
+}
+
 .maplibregl-map {
   font-family: var(--font);
 }
 
 .maplibregl-canvas:focus-visible {
-  outline: none;
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
 }
 
 .maplibregl-marker:hover,
@@ -688,7 +707,7 @@ svg {
   background: none;
   font-size: 10px;
   line-height: 1.4;
-  color: var(--quiet);
+  color: #696969;
 }
 
 @media (max-width: 599px) {
@@ -960,7 +979,12 @@ figcaption.off {
 }
 
 .music-text.flow .music-track {
-  animation: flow var(--dur, 10s) linear infinite;
+  animation: flow var(--dur, 10s) linear 1;
+}
+
+.music-chip:hover .music-track,
+.music-chip:focus-visible .music-track {
+  animation-play-state: paused;
 }
 
 @keyframes flow {
@@ -977,6 +1001,11 @@ figcaption.off {
 @media (prefers-reduced-motion: reduce) {
   .music-text.flow .music-track {
     animation: none;
+  }
+
+  .slide,
+  .pin {
+    transition: none;
   }
 }
 

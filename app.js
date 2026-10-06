@@ -377,7 +377,7 @@
   function placeSlides() {
     season.slides.forEach((slide, k) => {
       const r = seasonOffset(k);
-      const jump = season.last[k] !== undefined && Math.abs(r - season.last[k]) > 1.5;
+      const jump = season.last[k] === undefined || Math.abs(r - season.last[k]) > 1.5;
       slide.el.classList.toggle("jump", jump);
       slide.el.style.transform = `translateX(${Math.round(seasonCenter(slide, r) - slide.w / 2)}px)`;
       slide.el.tabIndex = Math.abs(r) < 0.5 ? 0 : -1;
@@ -420,8 +420,8 @@
   }
 
   function layoutSeason() {
-    if (!season.items.length) return;
     const stage = $("season-stage");
+    if (!season.items.length || !stage.clientWidth) return;
     const root = $("season");
     root.classList.remove("stack");
     season.width = stage.clientWidth;
@@ -480,8 +480,14 @@
     $("season-prev").addEventListener("click", () => seasonGo(Math.round(season.at) - 1));
     $("season-next").addEventListener("click", () => seasonGo(Math.round(season.at) + 1));
     root.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowLeft") seasonGo(Math.round(season.at) - 1);
-      if (e.key === "ArrowRight") seasonGo(Math.round(season.at) + 1);
+      const delta = { ArrowLeft: -1, ArrowRight: 1 }[e.key];
+      if (!delta) return;
+      e.preventDefault();
+      const onSlide = season.slides.some((s) => s.el === document.activeElement);
+      seasonGo(Math.round(season.at) + delta);
+      if (!onSlide) return;
+      const n = season.items.length;
+      season.slides[((Math.round(season.at) % n) + n) % n].el.focus({ preventScroll: true });
     });
 
     let start = null;
@@ -599,7 +605,7 @@
     map.fitBounds(boundsOf(placed), { padding: pad, maxZoom: 7.6, animate: false });
   }
 
-  function createMarker(items) {
+  function makePin(items) {
     const first = items[0];
     const wrap = document.createElement("div");
     const pin = document.createElement("button");
@@ -617,6 +623,57 @@
     } else {
       hoverCaption(pin, first);
     }
+    wrap.append(pin);
+    return { wrap, pin };
+  }
+
+  function clusterAt(pointOf) {
+    const clusters = [];
+    placed.forEach((p) => {
+      const { x, y } = pointOf(p);
+      const near = clusters.find((c) => Math.hypot(c.x - x, c.y - y) < 60);
+      if (near) near.items.push(p);
+      else clusters.push({ x, y, items: [p] });
+    });
+    return clusters;
+  }
+
+  let field = null;
+
+  function drawField() {
+    const w = mapSection.clientWidth;
+    const h = mapSection.clientHeight;
+    if (map || !placed.length || !w || !h) return;
+    const xs = placed.map((p) => mercX(p.lng));
+    const ys = placed.map((p) => mercY(p.lat));
+    const x0 = Math.min(...xs);
+    const y0 = Math.min(...ys);
+    const spanX = Math.max(...xs) - x0;
+    const spanY = Math.max(...ys) - y0;
+    const pad = 64;
+    const k = Math.min(512 * 2 ** 12, (w - pad * 2) / (spanX || 1), (h - pad * 2) / (spanY || 1));
+    const ox = (w - spanX * k) / 2;
+    const oy = (h - spanY * k) / 2;
+    if (!field) {
+      field = document.createElement("div");
+      field.className = "pin-field";
+      mapSection.prepend(field);
+    }
+    field.replaceChildren(...clusterAt((p) => ({ x: (mercX(p.lng) - x0) * k, y: (mercY(p.lat) - y0) * k })).map((c) => {
+      const { wrap, pin } = makePin(c.items);
+      wrap.style.left = `${Math.round(ox + c.x - 24)}px`;
+      wrap.style.top = `${Math.round(oy + c.y - 24)}px`;
+      pin.addEventListener("click", () => {
+        openedHere = true;
+        location.hash = `map/${c.items[0].id}`;
+      });
+      return wrap;
+    }));
+  }
+
+  function createMarker(items) {
+    const first = items[0];
+    const { wrap, pin } = makePin(items);
     pin.addEventListener("click", (e) => {
       e.stopPropagation();
       const bounds = boundsOf(items);
@@ -628,7 +685,6 @@
       }
       map.fitBounds(bounds, { padding: 120, maxZoom: 16, duration: 700 });
     });
-    wrap.append(pin);
     const lng = items.reduce((sum, p) => sum + p.lng, 0) / items.length;
     const lat = items.reduce((sum, p) => sum + p.lat, 0) / items.length;
     const marker = new maplibregl.Marker({ element: wrap, anchor: "center" }).setLngLat([lng, lat]).addTo(map);
@@ -636,16 +692,10 @@
   }
 
   function layoutMarkers() {
+    const held = [...markers.values()].find((m) => m.pin === document.activeElement);
     lastZoom = map.getZoom();
     const scale = 512 * 2 ** lastZoom;
-    const clusters = [];
-    placed.forEach((p) => {
-      const x = mercX(p.lng) * scale;
-      const y = mercY(p.lat) * scale;
-      const near = clusters.find((c) => Math.hypot(c.x - x, c.y - y) < 60);
-      if (near) near.items.push(p);
-      else clusters.push({ x, y, items: [p] });
-    });
+    const clusters = clusterAt((p) => ({ x: mercX(p.lng) * scale, y: mercY(p.lat) * scale }));
     const next = new Map();
     clusters.forEach((c) => {
       const key = c.items.map((p) => p.id).join("|");
@@ -656,6 +706,10 @@
     });
     markers = next;
     liftPins();
+    if (held && !held.pin.isConnected) {
+      const again = markerFor(held.items[0].id);
+      if (again) again.pin.focus({ preventScroll: true });
+    }
   }
 
   function markerFor(id) {
@@ -699,6 +753,11 @@
       $("zoom-out").addEventListener("click", () => map.zoomOut({ duration: 350 }));
       fitAll();
       layoutMarkers();
+      if (field) {
+        field.remove();
+        field = null;
+      }
+      mapSection.classList.add("ready");
     });
   }
 
@@ -718,9 +777,18 @@
         map.resize();
         if (focus) map.jumpTo({ center: [focus.lng, focus.lat], zoom: Math.max(map.getZoom(), 12) });
         layoutMarkers();
+        if (focus) {
+          requestAnimationFrame(() => {
+            const m = markerFor(focus.id);
+            if (m && state.tab === "map" && !state.id) m.pin.focus({ preventScroll: true });
+          });
+        }
       };
       if (map) show();
-      else ensureMap().then(() => state.tab === "map" && show()).catch(() => {});
+      else {
+        drawField();
+        ensureMap().then(() => state.tab === "map" && show()).catch(() => {});
+      }
     }
   }
 
@@ -881,7 +949,7 @@
     [neighbor(1), neighbor(-1)].forEach((p) => {
       if (!p) return;
       warmLarge(p);
-      warmSong(p);
+      if (soundOn) warmSong(p);
     });
   }
 
@@ -1120,7 +1188,6 @@
       if (songFor !== p) startSong(p);
     } else {
       stopSong();
-      warmSong(p);
     }
   }
 
@@ -1291,7 +1358,8 @@
 
   viewer.addEventListener("cancel", (e) => {
     e.preventDefault();
-    closeViewer();
+    if (zoom.on) setZoomMode(false);
+    else closeViewer();
   });
   let dragged = false;
   viewer.addEventListener("click", (e) => {
@@ -1304,7 +1372,40 @@
       else closeViewer();
     }
   });
+  function zoomBy(factor) {
+    const r = stage.getBoundingClientRect();
+    if (!zoom.on) setZoomMode(true);
+    zoomAt(r.left + r.width / 2, r.top + (r.height - capSpace()) / 2, zoom.s * factor);
+  }
+
   viewer.addEventListener("keydown", (e) => {
+    const onFigure = e.target === viewer.querySelector("figure");
+    if (onFigure && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      setZoomMode(!zoom.on);
+      return;
+    }
+    if (e.key === "+" || e.key === "=") {
+      e.preventDefault();
+      zoomBy(1.5);
+      return;
+    }
+    if (e.key === "-" && zoom.on) {
+      e.preventDefault();
+      if (zoom.s <= 1) setZoomMode(false);
+      else zoomBy(1 / 1.5);
+      return;
+    }
+    const pan = { ArrowLeft: [1, 0], ArrowRight: [-1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key];
+    if (pan && zoom.s > 1) {
+      e.preventDefault();
+      const r = stage.getBoundingClientRect();
+      zoom.x += pan[0] * r.width * 0.1;
+      zoom.y += pan[1] * r.height * 0.1;
+      clampZoom();
+      applyZoom();
+      return;
+    }
     if (e.key === "ArrowLeft") step(-1);
     if (e.key === "ArrowRight") step(1);
   });
@@ -1460,7 +1561,12 @@
       const fling = Math.abs(d.v) > 0.35 && Math.sign(d.v) === Math.sign(d.dx);
       const delta = d.dx < 0 ? 1 : -1;
       const from = d.shown || 0;
-      if ((Math.abs(d.dx) > width * 0.22 || fling) && neighbor(delta)) slideTo(delta, from, d.v);
+      const go = (Math.abs(d.dx) > width * 0.22 || fling) && neighbor(delta);
+      if (reduceMotion.matches) {
+        place();
+        showSound(true);
+        if (go) goTo(neighbor(delta));
+      } else if (go) slideTo(delta, from, d.v);
       else snapBack(from);
     } else if (d.dy > 110) {
       place();
@@ -1533,7 +1639,11 @@
   });
 
   window.addEventListener("resize", fitViewer);
-  window.addEventListener("resize", layoutSeason);
+  window.addEventListener("resize", () => {
+    if (field) drawField();
+  });
+  if (window.ResizeObserver) new ResizeObserver(layoutSeason).observe($("season-stage"));
+  else window.addEventListener("resize", layoutSeason);
   window.addEventListener("hashchange", route);
 
   renderSeason();
@@ -1549,15 +1659,6 @@
   const mapTab = document.querySelector('[data-tab="map"]');
   ["pointerenter", "touchstart", "focus"].forEach((type) => mapTab.addEventListener(type, warmMap, { once: true, passive: true }));
   const saving = navigator.connection && navigator.connection.saveData;
-  if (!saving && photos.some((p) => p.music && !p.demo)) {
-    const warmMusic = () => (window.requestIdleCallback || setTimeout)(() => {
-      const first = photos.find((p) => hasSong(p) && !p.demo);
-      if (!shown && first) warmSong(first);
-    }, { timeout: 4000 });
-    const soon = () => setTimeout(warmMusic, 2500);
-    if (document.readyState === "complete") soon();
-    else window.addEventListener("load", soon, { once: true });
-  }
   if (innerWidth >= 900 && !saving) {
     const later = () => setTimeout(() => (window.requestIdleCallback || setTimeout)(warmMap), 1500);
     if (document.readyState === "complete") later();
