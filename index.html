@@ -13,12 +13,12 @@
 <meta property="og:image" content="https://makitonakano.github.io/kakurega/img/l/tennozaki-park.webp">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preload" href="fonts/title.woff2?v=575d8513" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=c228c14b">
+<link rel="stylesheet" href="style.css?v=ed03718b">
 </head>
 <body>
 <header class="bar">
   <div class="left">
-    <h1 class="brand"><a href="#gallery" id="brand"><span class="logo" lang="en">KAKUREGA</span><span class="kana">カクレガ</span></a></h1>
+    <h1 class="brand"><a href="#gallery" id="brand"><span class="logo" lang="en">KAKUREGA</span><span class="kana" lang="ja">カクレガ</span></a></h1>
     <p class="caption" id="caption" aria-hidden="true"><span id="caption-a"></span><span class="b" id="caption-b"></span></p>
   </div>
   <nav class="tabs" data-t-label="tabs" aria-label="表示の切り替え">
@@ -70,6 +70,7 @@
       </div>
     </div>
     <ul class="grid" id="grid"></ul>
+    <p class="sr-only" id="live" aria-live="polite" aria-atomic="true"></p>
   </section>
   <section id="view-map" data-t-label="map" aria-label="地図">
     <div id="map-canvas"></div>
@@ -118,11 +119,13 @@
         </a>
       </div>
     </figcaption>
+    <p class="sr-only" id="viewer-live" aria-live="polite" aria-atomic="true"></p>
   </figure>
 </dialog>
 
 <script src="i18n.js?v=bd05a711"></script>
-<script src="data.js?v=0dc700bd"></script>
-<script src="app.js?v=07363b45"></script>
+<script src="data.js?v=26e59e24"></script>
+<script src="app.js?v=8db2a139"></script>
+<script src="meta.js?v=52253dce"></script>
 </body>
 </html>

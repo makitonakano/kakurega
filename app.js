@@ -41,7 +41,12 @@
   const imgOf = (slot) => slot.querySelector("img");
   let order = slots.slice();
   let viewerImg = imgOf(order[1]);
-  const largeReady = new Set();
+  const ready = new Set();
+  slots.forEach((slot) => {
+    const img = imgOf(slot);
+    img.addEventListener("error", () => img.classList.add("failed"));
+    img.addEventListener("load", () => img.classList.remove("failed"));
+  });
   let skipMorph = false;
   let sliding = false;
   const viewerA = $("viewer-a");
@@ -114,7 +119,7 @@
     return name.en ? [entry("en"), entry("ja")] : [entry("ja"), entry("en")];
   }
 
-  const label = (p) => pair(p.name).map((n) => n.text).filter(Boolean).join(" ") || t("photo");
+  const label = (p) => pair(p.name).map((n) => n.text).find(Boolean) || t("photo");
 
   function fillNames(a, b, name) {
     const [first, second] = pair(name);
@@ -169,7 +174,7 @@
         prefectures = window.PREFECTURES;
         prefNames = new Map(prefectures.features.map((f) => [f.id, f.properties]));
         placed.forEach((p) => {
-          p.pref = prefectureAt(p.lng, p.lat);
+          if (p.pref === undefined) p.pref = prefectureAt(p.lng, p.lat);
         });
       }).catch((error) => {
         mapStack = null;
@@ -252,6 +257,7 @@
       update();
       after();
     });
+    transition.ready.catch(() => {});
     transition.finished.catch(() => {}).then(() => {
       if (run === morphRun) clearNames();
       finish();
@@ -337,8 +343,8 @@
     hero.style.backgroundColor = heroPhoto.c;
     hero.hidden = false;
     img.decoding = "async";
-    img.loading = "lazy";
-    img.fetchPriority = "low";
+    img.addEventListener("load", tileGate, { once: true });
+    img.addEventListener("error", tileGate, { once: true });
     if (innerWidth >= 600) {
       img.sizes = sizesFor(Math.max(innerWidth, (hero.clientHeight * heroPhoto.w) / heroPhoto.h));
       img.srcset = wideSet(heroPhoto);
@@ -381,12 +387,16 @@
       slide.el.classList.toggle("jump", jump);
       slide.el.style.transform = `translateX(${Math.round(seasonCenter(slide, r) - slide.w / 2)}px)`;
       slide.el.tabIndex = Math.abs(r) < 0.5 ? 0 : -1;
+      if (Math.abs(r) > 2.5 && season.last[k] !== undefined && Math.abs(season.last[k]) > 2.5) {
+        season.last[k] = r;
+        return;
+      }
       if (!slide.loaded && slide.w && Math.abs(r) <= 1.5) {
         slide.loaded = true;
         slide.img.fetchPriority = Math.abs(r) < 0.5 ? "high" : "low";
         if (Math.abs(r) < 0.5 && !tilesStarted) {
-          slide.img.addEventListener("load", startTiles, { once: true });
-          slide.img.addEventListener("error", startTiles, { once: true });
+          slide.img.addEventListener("load", tileGate, { once: true });
+          slide.img.addEventListener("error", tileGate, { once: true });
         }
         slide.img.sizes = sizesFor(slide.w);
         slide.img.srcset = tileSet(season.items[k]);
@@ -405,7 +415,15 @@
     season.shown = index;
   }
 
-  function seasonGo(to) {
+  function seasonGo(to, dur) {
+    const stage = $("season-stage");
+    if (dur) {
+      stage.style.setProperty("--slide-dur", `${dur}ms`);
+      stage.style.setProperty("--slide-ease", "cubic-bezier(0.22, 1, 0.36, 1)");
+    } else {
+      stage.style.removeProperty("--slide-dur");
+      stage.style.removeProperty("--slide-ease");
+    }
     season.at = to;
     placeSlides();
     const n = season.items.length;
@@ -415,6 +433,7 @@
     root.classList.add("swap");
     setTimeout(() => {
       seasonText();
+      $("live").textContent = `${label(season.items[index])} ${index + 1} / ${n}`;
       root.classList.remove("swap");
     }, reduceMotion.matches ? 0 : 200);
   }
@@ -435,7 +454,10 @@
     season.slides.forEach((slide, k) => {
       const p = season.items[k];
       slide.w = Math.min(Math.round((height * p.w) / p.h), season.width - season.peek * 2 - 32);
+      const h = Math.min(height, Math.round((slide.w * p.h) / p.w));
       slide.el.style.width = `${slide.w}px`;
+      slide.el.style.height = `${h}px`;
+      slide.el.style.top = `${Math.round((height - h) / 2)}px`;
       slide.el.classList.add("jump");
     });
     season.last = [];
@@ -459,6 +481,7 @@
       img.alt = label(p);
       img.decoding = "async";
       img.draggable = false;
+      img.addEventListener("load", () => img.classList.add("ready"));
       el.append(img);
       openFrom(el, img, p);
       el.addEventListener("click", (e) => {
@@ -493,7 +516,7 @@
     let start = null;
     stage.addEventListener("pointerdown", (e) => {
       if (single || (e.pointerType === "mouse" && e.button !== 0)) return;
-      start = { x: e.clientX, y: e.clientY, at: Math.round(season.at), active: false };
+      start = { x: e.clientX, y: e.clientY, at: Math.round(season.at), active: false, lastX: e.clientX, lastT: performance.now(), v: 0 };
       season.dragged = false;
     });
     stage.addEventListener("pointermove", (e) => {
@@ -507,6 +530,10 @@
         stage.classList.add("dragging");
         stage.setPointerCapture(e.pointerId);
       }
+      const now = performance.now();
+      if (now > start.lastT) start.v = 0.8 * ((e.clientX - start.lastX) / (now - start.lastT)) + 0.2 * start.v;
+      start.lastX = e.clientX;
+      start.lastT = now;
       season.at = start.at - dx / (season.width * 0.5);
       placeSlides();
     });
@@ -515,11 +542,14 @@
       const dx = e.clientX - start.x;
       const active = start.active;
       const base = start.at;
+      const v = start.v;
       start = null;
       stage.classList.remove("dragging");
       if (!active) return;
       const steps = Math.abs(dx) > 48 ? Math.max(1, Math.round(Math.abs(dx) / (season.width * 0.5))) : 0;
-      seasonGo(base - Math.sign(dx) * steps);
+      const to = base - Math.sign(dx) * steps;
+      const rest = Math.abs(to - season.at) * season.width * 0.5;
+      seasonGo(to, Math.round(Math.min(340, Math.max(200, rest / Math.max(Math.abs(v), 1.3)))));
       setTimeout(() => {
         season.dragged = false;
       }, 0);
@@ -536,25 +566,41 @@
       if (now < wheelLock) return;
       wheel += e.deltaX;
       if (Math.abs(wheel) > 50) {
-        seasonGo(Math.round(season.at) + Math.sign(wheel));
+        seasonGo(Math.round(season.at) + Math.sign(wheel), 420);
         wheel = 0;
-        wheelLock = now + 520;
+        wheelLock = now + 440;
       }
     }, { passive: false });
   }
 
   function renderGrid() {
-    const row = innerWidth < 600 ? 120 : Math.min(400, Math.max(200, innerWidth * 0.24));
+    const row = Math.min(400, Math.max(120, 8 + innerWidth * 0.24));
+    const tileOf = (e) => {
+      const a = e.target.closest && e.target.closest("a[data-pid]");
+      return a && grid.contains(a) ? a : null;
+    };
+    grid.addEventListener("click", (e) => {
+      if (!tileOf(e)) return;
+      openedHere = true;
+      origin = null;
+    });
+    ["mouseover", "focusin"].forEach((type) => grid.addEventListener(type, (e) => {
+      const a = tileOf(e);
+      if (a) showCaption(byId.get(a.dataset.pid));
+    }));
+    ["mouseout", "focusout"].forEach((type) => grid.addEventListener(type, (e) => {
+      const a = tileOf(e);
+      if (a && !(e.relatedTarget && a.contains(e.relatedTarget))) showCaption(null);
+    }));
+    grid.addEventListener("load", (e) => {
+      if (e.target.tagName === "IMG") e.target.classList.add("ready");
+    }, true);
     const items = listed.map((p) => {
       const li = document.createElement("li");
       li.style.setProperty("--ar", (p.w / p.h).toFixed(4));
       const a = document.createElement("a");
       a.href = `#gallery/${p.id}`;
-      a.addEventListener("click", () => {
-        openedHere = true;
-        origin = null;
-      });
-      hoverCaption(a, p);
+      a.dataset.pid = p.id;
       a.style.backgroundColor = p.c;
       const img = document.createElement("img");
       img.width = p.w;
@@ -562,8 +608,7 @@
       img.alt = label(p);
       img.loading = "lazy";
       img.decoding = "async";
-      img.addEventListener("load", () => img.classList.add("ready"));
-      img.sizes = sizesFor((p.w / p.h) * row * 1.2);
+      img.sizes = `auto, ${sizesFor((p.w / p.h) * row * 1.2)}`;
       thumbs.set(p.id, img);
       a.append(img);
       li.append(a);
@@ -573,6 +618,12 @@
   }
 
   let tilesStarted = false;
+  let tileWait = 1 + (heroPhoto ? 1 : 0);
+
+  function tileGate() {
+    tileWait -= 1;
+    if (tileWait <= 0) startTiles();
+  }
 
   function startTiles() {
     if (tilesStarted) return;
@@ -611,8 +662,12 @@
     const pin = document.createElement("button");
     pin.type = "button";
     pin.className = "pin";
-    pin.setAttribute("aria-label", items.length > 1 ? `${label(first)} ${t("more").replace("{n}", items.length - 1)}` : label(first));
+    const pref = prefNames.get(first.pref);
+    const where = pref ? ` ${pair(pref).map((n) => n.text).find(Boolean)}` : "";
+    pin.setAttribute("aria-label", items.length > 1 ? `${label(first)}${where} ${t("more").replace("{n}", items.length - 1)}` : `${label(first)}${where}`);
     const img = document.createElement("img");
+    img.loading = "lazy";
+    img.decoding = "async";
     img.src = src("p", first);
     img.alt = "";
     pin.append(img);
@@ -623,18 +678,39 @@
     } else {
       hoverCaption(pin, first);
     }
+    const onPref = (on) => () => {
+      if (map && first.pref !== undefined) setHoverPref(on ? first.pref : null);
+    };
+    pin.addEventListener("focus", onPref(true));
+    pin.addEventListener("blur", onPref(false));
     wrap.append(pin);
     return { wrap, pin };
   }
 
-  function clusterAt(pointOf) {
+  function clusterAt(pointOf, list = placed) {
     const clusters = [];
-    placed.forEach((p) => {
+    list.forEach((p) => {
       const { x, y } = pointOf(p);
       const near = clusters.find((c) => Math.hypot(c.x - x, c.y - y) < 60);
-      if (near) near.items.push(p);
-      else clusters.push({ x, y, items: [p] });
+      if (near) {
+        near.items.push(p);
+        near.x += (x - near.x) / near.items.length;
+        near.y += (y - near.y) / near.items.length;
+      } else clusters.push({ x, y, items: [p] });
     });
+    for (let i = 0; i < clusters.length; i += 1) {
+      for (let j = i + 1; j < clusters.length; j += 1) {
+        const a = clusters[i];
+        const b = clusters[j];
+        if (Math.hypot(a.x - b.x, a.y - b.y) >= 60) continue;
+        const n = a.items.length + b.items.length;
+        a.x = (a.x * a.items.length + b.x * b.items.length) / n;
+        a.y = (a.y * a.items.length + b.y * b.items.length) / n;
+        a.items.push(...b.items);
+        clusters.splice(j, 1);
+        j = i;
+      }
+    }
     return clusters;
   }
 
@@ -695,7 +771,11 @@
     const held = [...markers.values()].find((m) => m.pin === document.activeElement);
     lastZoom = map.getZoom();
     const scale = 512 * 2 ** lastZoom;
-    const clusters = clusterAt((p) => ({ x: mercX(p.lng) * scale, y: mercY(p.lat) * scale }));
+    const b = map.getBounds();
+    const padX = (b.getEast() - b.getWest()) / 2;
+    const padY = (b.getNorth() - b.getSouth()) / 2;
+    const near = placed.filter((p) => p.lng > b.getWest() - padX && p.lng < b.getEast() + padX && p.lat > b.getSouth() - padY && p.lat < b.getNorth() + padY);
+    const clusters = clusterAt((p) => ({ x: mercX(p.lng) * scale, y: mercY(p.lat) * scale }), near);
     const next = new Map();
     clusters.forEach((c) => {
       const key = c.items.map((p) => p.id).join("|");
@@ -734,12 +814,14 @@
         pitchWithRotate: false,
         touchPitch: false,
         attributionControl: false,
+        locale: { "Map.Title": t("map") },
         localIdeographFontFamily: '"Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", sans-serif',
       });
       map.touchZoomRotate.disableRotation();
       map.keyboard.disableRotation();
       map.addControl(new maplibregl.AttributionControl({ compact: false }), "bottom-left");
       map.on("zoomend", layoutMarkers);
+      map.on("moveend", layoutMarkers);
       map.on("zoom", () => {
         if (Math.abs(map.getZoom() - lastZoom) >= 0.6) layoutMarkers();
       });
@@ -792,23 +874,37 @@
     }
   }
 
+  let box = null;
+
+  function stageBox() {
+    if (!box) {
+      const r = stage.getBoundingClientRect();
+      const cs = getComputedStyle(stage);
+      box = { left: r.left, top: r.top, width: r.width, height: r.height, cap: parseFloat(cs.getPropertyValue("--cap")) || 0, gap: parseFloat(cs.getPropertyValue("--slide-gap")) || 32, offsetLeft: stage.offsetLeft, offsetTop: stage.offsetTop };
+      requestAnimationFrame(() => {
+        box = null;
+      });
+    }
+    return box;
+  }
+
   function sizeTo(img, p) {
-    const r = stage.getBoundingClientRect();
-    const k = Math.min(r.width / p.w, Math.max(1, r.height - capSpace()) / p.h);
+    const r = stageBox();
+    const k = Math.min(r.width / p.w, Math.max(1, r.height - r.cap) / p.h);
     img.style.width = `${Math.floor(p.w * k)}px`;
     img.style.height = `${Math.floor(p.h * k)}px`;
   }
 
   function capSpace() {
-    return parseFloat(getComputedStyle(stage).getPropertyValue("--cap")) || 0;
+    return stageBox().cap;
   }
 
   function slideGap() {
-    return parseFloat(getComputedStyle(stage).getPropertyValue("--slide-gap")) || 32;
+    return stageBox().gap;
   }
 
   function place(dx = 0, dy = 0) {
-    const span = stage.getBoundingClientRect().width + slideGap();
+    const span = stageBox().width + slideGap();
     order.forEach((slot, i) => {
       slot.style.transform = `translate3d(${(i - 1) * span + dx}px, ${i === 1 ? dy : 0}px, 0)`;
       slot.style.opacity = i === 1 && dy ? String(Math.max(0.4, 1 - dy / 600)) : "";
@@ -817,8 +913,8 @@
 
   function placeSound() {
     if (!shown) return;
-    const r = stage.getBoundingClientRect();
-    const cap = capSpace();
+    const r = stageBox();
+    const cap = r.cap;
     const w = parseFloat(viewerImg.style.width) || 0;
     const h = parseFloat(viewerImg.style.height) || 0;
     const left = (r.width - w) / 2;
@@ -828,12 +924,13 @@
     const caption = viewer.querySelector("figcaption");
     const width = Math.min(r.width, Math.max(w, 300));
     const x = Math.max(0, Math.min(left, r.width - width));
-    caption.style.setProperty("--cap-x", `${Math.round(stage.offsetLeft + x)}px`);
-    caption.style.setProperty("--cap-y", `${Math.round(stage.offsetTop + top + h + 14)}px`);
+    caption.style.setProperty("--cap-x", `${Math.round(r.offsetLeft + x)}px`);
+    caption.style.setProperty("--cap-y", `${Math.round(r.offsetTop + top + h + 14)}px`);
     caption.style.setProperty("--cap-w", `${Math.round(width)}px`);
   }
 
   function fitViewer() {
+    box = null;
     if (!shown) return;
     order.forEach((slot) => {
       const p = byId.get(imgOf(slot).dataset.pid);
@@ -847,7 +944,6 @@
   }
 
   const zoom = { on: false, s: 1, x: 0, y: 0 };
-  let zoomTimer = 0;
 
   function shotOf(img) {
     return img.parentElement;
@@ -859,7 +955,7 @@
   }
 
   function clampZoom() {
-    const r = stage.getBoundingClientRect();
+    const r = stageBox();
     const w = parseFloat(viewerImg.style.width) || 0;
     const h = parseFloat(viewerImg.style.height) || 0;
     const bx = Math.max(0, (w * zoom.s - r.width) / 2);
@@ -879,22 +975,25 @@
 
   function setZoomMode(on) {
     if (zoom.on === on) return;
+    const img = viewerImg;
+    const before = img.getBoundingClientRect();
     zoom.on = on;
     resetZoom();
     viewer.classList.toggle("full", on);
-    if (!reduceMotion.matches) {
-      viewer.classList.add("fulling");
-      clearTimeout(zoomTimer);
-      zoomTimer = setTimeout(() => {
-        viewer.classList.remove("fulling");
-        fitViewer();
-      }, 320);
-    }
+    showSound(true);
     fitViewer();
+    if (on && shown) upgradeLarge(shown);
+    if (reduceMotion.matches || !before.width) return;
+    const after = img.getBoundingClientRect();
+    if (!after.width) return;
+    img.animate([
+      { transform: `translate(${before.left + before.width / 2 - after.left - after.width / 2}px, ${before.top + before.height / 2 - after.top - after.height / 2}px) scale(${before.width / after.width})` },
+      { transform: "none" },
+    ], { duration: 280, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
   }
 
   function zoomAt(x, y, scale) {
-    const r = stage.getBoundingClientRect();
+    const r = stageBox();
     const cx = r.left + r.width / 2;
     const cy = r.top + (r.height - capSpace()) / 2;
     const px = (x - cx - zoom.x) / zoom.s;
@@ -914,7 +1013,28 @@
     return pool[(i + delta + pool.length) % pool.length];
   }
 
-  const bestSrc = (p) => (largeReady.has(p.id) ? src("l", p) : src("s", p));
+  function viewSize(p) {
+    if (zoom.on) return "l";
+    const b = stageBox();
+    const k = Math.min(b.width / p.w, Math.max(1, b.height - b.cap) / p.h);
+    return Math.min(p.h, THUMB) >= p.h * k * Math.min(2, window.devicePixelRatio || 1) ? "t" : "l";
+  }
+
+  const bestSrc = (p) => {
+    const want = src(viewSize(p), p);
+    return ready.has(want) ? want : src("s", p);
+  };
+
+  function upgradeLarge(p) {
+    const url = src("l", p);
+    if (viewerImg.getAttribute("src") === url) return;
+    const im = new Image();
+    im.src = url;
+    im.decode().then(() => {
+      ready.add(url);
+      if (shown === p && zoom.on) viewerImg.src = url;
+    }).catch(() => {});
+  }
 
   function updatePeeks() {
     [[imgOf(order[0]), neighbor(-1)], [imgOf(order[2]), neighbor(1)]].forEach(([img, p]) => {
@@ -928,19 +1048,21 @@
         img.alt = label(p);
         img.src = bestSrc(p);
       }
+      shotOf(img).style.backgroundColor = p.c;
       sizeTo(img, p);
     });
   }
 
   function warmLarge(p) {
-    if (largeReady.has(p.id)) return Promise.resolve();
+    const url = src(viewSize(p), p);
+    if (ready.has(url)) return Promise.resolve();
     const im = new Image();
-    im.src = src("l", p);
+    im.src = url;
     return im.decode().then(() => {
-      largeReady.add(p.id);
+      ready.add(url);
       order.forEach((slot) => {
         const img = imgOf(slot);
-        if (img.dataset.pid === p.id && img !== viewerImg) img.src = src("l", p);
+        if (img.dataset.pid === p.id && img !== viewerImg) img.src = url;
       });
     }).catch(() => {});
   }
@@ -953,38 +1075,55 @@
     });
   }
 
-  function showPhoto(p) {
-    shown = p;
-    resetZoom();
-    const tile = thumbs.get(p.id);
-    if (viewerImg.dataset.pid !== p.id || !viewerImg.getAttribute("src")) {
-      viewerImg.dataset.pid = p.id;
-      viewerImg.src = largeReady.has(p.id) ? src("l", p) : (tile && tile.currentSrc) || src("s", p);
-    }
-    viewerImg.alt = label(p);
-    fillNames(viewerA, viewerB, p.name);
+  function fillMeta(p) {
     const placeLink = $("viewer-place");
     if (p.link) placeLink.href = p.link;
     else placeLink.removeAttribute("href");
-    viewerMap.hidden = !onMap(p);
     const credit = $("viewer-credit");
     credit.hidden = !p.credit;
     credit.textContent = p.credit ? `Photo: ${p.credit}` : "";
     if (p.source) credit.href = p.source;
     else credit.removeAttribute("href");
     showMusic(p);
+  }
+
+  function mergeMeta() {
+    const meta = window.PHOTO_META || {};
+    Object.keys(meta).forEach((id) => {
+      const p = byId.get(id);
+      if (p) Object.assign(p, meta[id]);
+    });
+    if (shown) fillMeta(shown);
+  }
+
+  function showPhoto(p) {
+    shown = p;
+    resetZoom();
+    const tile = thumbs.get(p.id);
+    if (!viewer.open) viewer.showModal();
+    box = null;
+    const want = src(viewSize(p), p);
+    if (viewerImg.dataset.pid !== p.id || !viewerImg.getAttribute("src")) {
+      viewerImg.dataset.pid = p.id;
+      viewerImg.classList.remove("failed");
+      viewerImg.src = ready.has(want) ? want : (tile && tile.currentSrc) || src("s", p);
+    }
+    shotOf(viewerImg).style.backgroundColor = p.c;
+    viewerImg.alt = label(p);
+    fillNames(viewerA, viewerB, p.name);
+    viewerMap.hidden = !onMap(p);
+    fillMeta(p);
     const single = poolOf(p).length < 2;
     prevButton.hidden = single;
     nextButton.hidden = single;
-    if (!viewer.open) viewer.showModal();
     fitViewer();
-    if (!largeReady.has(p.id)) {
+    if (!ready.has(want)) {
       const large = new Image();
-      large.src = src("l", p);
+      large.src = want;
       large.decode().then(() => {
-        largeReady.add(p.id);
+        ready.add(want);
         afterMorph(() => {
-          if (shown === p) viewerImg.src = large.src;
+          if (shown === p && !zoom.on) viewerImg.src = want;
         });
       }).catch(() => {});
     }
@@ -1041,7 +1180,7 @@
   function setSound(on) {
     soundOn = on;
     soundButton.setAttribute("aria-pressed", String(on));
-    soundButton.setAttribute("aria-label", on ? t("mute") : t("unmute"));
+    soundButton.setAttribute("aria-label", t("unmute"));
     try {
       sessionStorage.setItem(SOUND_KEY, on ? "1" : "0");
     } catch (e) {
@@ -1209,6 +1348,7 @@
     stopSong();
     setZoomMode(false);
     shown = null;
+    place();
     if (viewer.open) viewer.close();
   }
 
@@ -1219,15 +1359,10 @@
   }
 
   function nameTab(tab) {
-    if (tab === "gallery") {
-      thumbs.forEach((img, id) => {
-        if (inView(img)) setName(img, `p-${id}`);
-      });
-    } else {
-      markers.forEach((m) => {
-        if (inView(m.pin)) setName(m.pin, `p-${m.items[0].id}`);
-      });
-    }
+    const hits = tab === "gallery"
+      ? [...thumbs].filter(([, img]) => inView(img)).map(([id, img]) => [img, id])
+      : [...markers.values()].filter((m) => inView(m.pin)).map((m) => [m.pin, m.items[0].id]);
+    hits.forEach(([el, id]) => setName(el, `p-${id}`));
   }
 
   function apply(next, focus) {
@@ -1292,12 +1427,13 @@
     skipMorph = true;
     history.replaceState(null, "", `#${state.tab}/${p.id}`);
     route();
+    $("viewer-live").textContent = label(p);
   }
 
   const EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
 
   function animateSlots(fromDx, toDx, duration) {
-    const span = stage.getBoundingClientRect().width + slideGap();
+    const span = stageBox().width + slideGap();
     const runs = order.map((slot, i) => slot.animate(
       [{ transform: `translate3d(${(i - 1) * span + fromDx}px, 0, 0)` }, { transform: `translate3d(${(i - 1) * span + toDx}px, 0, 0)` }],
       { duration, easing: EASE, fill: "forwards" },
@@ -1309,9 +1445,14 @@
     soundButton.style.opacity = on ? "" : "0";
   }
 
+  let pendingCommit = null;
+  let snapRuns = null;
+
   function slideTo(delta, from = 0, velocity = 0) {
+    if (pendingCommit) pendingCommit();
     const next = neighbor(delta);
     if (!next || sliding) return;
+    const leaving = shown;
     sliding = true;
     if (soundOn) unlockAudio();
     if (soundOn && hasSong(next)) startSong(next);
@@ -1319,35 +1460,60 @@
     showSound(false);
     const caption = viewer.querySelector("figcaption");
     caption.classList.add("off");
-    const span = stage.getBoundingClientRect().width + slideGap();
+    const span = stageBox().width + slideGap();
     const target = -delta * span;
     const speed = Math.max(Math.abs(velocity), 1.3);
     const duration = Math.round(Math.min(340, Math.max(200, Math.abs(target - from) / speed)));
     const { runs, done } = animateSlots(from, target, duration);
-    done.then(() => {
+    const commit = () => {
+      if (pendingCommit !== commit) return;
+      pendingCommit = null;
+      runs.forEach((r) => r.cancel());
+      sliding = false;
+      if (!viewer.open || shown !== leaving) {
+        place();
+        showSound(true);
+        caption.classList.remove("off");
+        return;
+      }
       order = delta > 0 ? [order[1], order[2], order[0]] : [order[2], order[0], order[1]];
       viewerImg = imgOf(order[1]);
       place();
-      runs.forEach((r) => r.cancel());
-      sliding = false;
       goTo(next);
       updatePeeks();
       placeSound();
       showSound(true);
       requestAnimationFrame(() => caption.classList.remove("off"));
-    });
+    };
+    pendingCommit = commit;
+    done.then(commit);
   }
 
   function snapBack(from) {
     const { runs, done } = animateSlots(from, 0, 240);
+    snapRuns = runs;
     done.then(() => {
+      if (snapRuns !== runs) return;
+      snapRuns = null;
       place();
       runs.forEach((r) => r.cancel());
       showSound(true);
     });
   }
 
+  function settleSlides() {
+    if (pendingCommit) pendingCommit();
+    if (snapRuns) {
+      const runs = snapRuns;
+      snapRuns = null;
+      place();
+      runs.forEach((r) => r.cancel());
+      showSound(true);
+    }
+  }
+
   function step(delta) {
+    settleSlides();
     if (!state.id) return;
     const pool = poolOf(byId.get(state.id));
     if (pool.length < 2) return;
@@ -1373,7 +1539,7 @@
     }
   });
   function zoomBy(factor) {
-    const r = stage.getBoundingClientRect();
+    const r = stageBox();
     if (!zoom.on) setZoomMode(true);
     zoomAt(r.left + r.width / 2, r.top + (r.height - capSpace()) / 2, zoom.s * factor);
   }
@@ -1399,7 +1565,7 @@
     const pan = { ArrowLeft: [1, 0], ArrowRight: [-1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key];
     if (pan && zoom.s > 1) {
       e.preventDefault();
-      const r = stage.getBoundingClientRect();
+      const r = stageBox();
       zoom.x += pan[0] * r.width * 0.1;
       zoom.y += pan[1] * r.height * 0.1;
       clampZoom();
@@ -1442,10 +1608,13 @@
     }
     lastTap = { t: now, x: e.clientX, y: e.clientY };
     clearTimeout(tapTimer);
+    if (!zoom.on) {
+      setZoomMode(true);
+      return;
+    }
     tapTimer = setTimeout(() => {
       lastTap = null;
-      if (!zoom.on) setZoomMode(true);
-      else if (zoom.s <= 1) setZoomMode(false);
+      if (zoom.s <= 1) setZoomMode(false);
     }, 320);
   }
 
@@ -1457,7 +1626,7 @@
 
   function pinchMove() {
     const [a, b] = [...pointers.values()];
-    const r = stage.getBoundingClientRect();
+    const r = stageBox();
     const cx = r.left + r.width / 2;
     const cy = r.top + (r.height - capSpace()) / 2;
     const mx = (a.x + b.x) / 2;
@@ -1472,12 +1641,14 @@
   }
 
   stage.addEventListener("pointerdown", (e) => {
-    if (sliding || (e.pointerType === "mouse" && e.button !== 0) || e.target.closest(".sound")) return;
+    if ((e.pointerType === "mouse" && e.button !== 0) || e.target.closest(".sound")) return;
+    settleSlides();
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     stage.setPointerCapture(e.pointerId);
     if (pointers.size === 2 && e.target.closest(".shot")) {
-      if (drag && drag.mode === "x") place();
+      if (drag && drag.mode) place();
       drag = null;
+      showSound(true);
       pinchStart();
       return;
     }
@@ -1557,7 +1728,7 @@
       dragged = false;
     }, 50);
     if (d.mode === "x") {
-      const width = stage.getBoundingClientRect().width;
+      const width = stageBox().width;
       const fling = Math.abs(d.v) > 0.35 && Math.sign(d.v) === Math.sign(d.dx);
       const delta = d.dx < 0 ? 1 : -1;
       const from = d.shown || 0;
@@ -1569,7 +1740,6 @@
       } else if (go) slideTo(delta, from, d.v);
       else snapBack(from);
     } else if (d.dy > 110) {
-      place();
       closeViewer();
     } else {
       place();
@@ -1608,6 +1778,7 @@
     if (shown) {
       fillNames(viewerA, viewerB, shown.name);
       viewerImg.alt = label(shown);
+      showMusic(shown);
     }
     if (map) {
       map.setStyle(styleFor());
@@ -1646,6 +1817,7 @@
   else window.addEventListener("resize", layoutSeason);
   window.addEventListener("hashchange", route);
 
+  document.addEventListener("DOMContentLoaded", mergeMeta, { once: true });
   renderSeason();
   renderHero();
   renderGrid();
@@ -1659,7 +1831,8 @@
   const mapTab = document.querySelector('[data-tab="map"]');
   ["pointerenter", "touchstart", "focus"].forEach((type) => mapTab.addEventListener(type, warmMap, { once: true, passive: true }));
   const saving = navigator.connection && navigator.connection.saveData;
-  if (innerWidth >= 900 && !saving) {
+  const slow = navigator.connection && /2g|3g/.test(navigator.connection.effectiveType || "");
+  if (!saving && (innerWidth >= 900 || !slow)) {
     const later = () => setTimeout(() => (window.requestIdleCallback || setTimeout)(warmMap), 1500);
     if (document.readyState === "complete") later();
     else window.addEventListener("load", later, { once: true });
