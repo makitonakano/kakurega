@@ -3,6 +3,10 @@
   const photos = window.PHOTOS || [];
   const byId = new Map(photos.map((p) => [p.id, p]));
   const listed = photos.filter((p) => !p.demo);
+  for (let i = listed.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [listed[i], listed[j]] = [listed[j], listed[i]];
+  }
   const extras = photos.filter((p) => p.demo);
   const placed = listed.filter((p) => typeof p.lat === "number");
   const onMap = (p) => Boolean(p) && !p.demo && typeof p.lat === "number";
@@ -535,7 +539,7 @@
 
   function renderGrid() {
     const row = innerWidth < 600 ? 120 : Math.min(400, Math.max(200, innerWidth * 0.24));
-    const items = photos.filter((p) => !p.demo).map((p) => {
+    const items = listed.map((p) => {
       const li = document.createElement("li");
       li.style.setProperty("--ar", (p.w / p.h).toFixed(4));
       const a = document.createElement("a");
