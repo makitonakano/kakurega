@@ -1100,7 +1100,10 @@
     shown = p;
     resetZoom();
     const tile = thumbs.get(p.id);
-    if (!viewer.open) viewer.showModal();
+    if (!viewer.open) {
+      viewer.showModal();
+      showSound(true);
+    }
     box = null;
     const want = src(viewSize(p), p);
     if (viewerImg.dataset.pid !== p.id || !viewerImg.getAttribute("src")) {
@@ -1349,6 +1352,7 @@
     setZoomMode(false);
     shown = null;
     place();
+    showSound(true);
     if (viewer.open) viewer.close();
   }
 
