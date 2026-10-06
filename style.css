@@ -691,6 +691,16 @@ svg {
   color: var(--quiet);
 }
 
+@media (max-width: 599px) {
+  .maplibregl-ctrl.maplibregl-ctrl-attrib {
+    max-width: 100vw;
+    overflow: hidden;
+    font-size: 9px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+
 .maplibregl-ctrl-attrib a {
   color: inherit;
 }

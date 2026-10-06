@@ -178,7 +178,7 @@
   function styleFor() {
     const style = structuredClone(window.MAP_STYLE);
     const level = ["coalesce", ["feature-state", "level"], 0];
-    style.sources.pref = { type: "geojson", data: prefectures, attribution: "国土数値情報（国土交通省）" };
+    style.sources.pref = { type: "geojson", data: prefectures, attribution: innerWidth < 600 ? "国土数値情報" : "国土数値情報（国土交通省）" };
     style.layers.splice(style.layers.findIndex((layer) => layer.id === "water"), 0, {
       id: "pref-fill",
       type: "fill",
