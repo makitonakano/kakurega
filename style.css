@@ -420,8 +420,8 @@ a {
 
 .hero {
   position: relative;
-  height: 112svh;
-  min-height: 560px;
+  height: 82svh;
+  min-height: 480px;
   overflow: hidden;
   background: var(--hold);
 }
@@ -466,7 +466,7 @@ a {
   place-content: center;
   justify-items: center;
   gap: 20px;
-  padding: 24px 24px 30svh;
+  padding: 24px;
   color: #fff;
   text-align: center;
   pointer-events: none;
@@ -501,7 +501,7 @@ a {
 
 @media (max-width: 599px) {
   .hero {
-    height: 96svh;
+    height: 66svh;
   }
 
   .hero-text {
