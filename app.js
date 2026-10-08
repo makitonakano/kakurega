@@ -97,7 +97,10 @@
     return hit ? hit.code : null;
   }
 
+  const urlLang = matchLang(new URLSearchParams(location.search).get("lang") || "");
+
   function initialLang() {
+    if (urlLang) return urlLang;
     const saved = savedLang();
     if (langInfo(saved)) return saved;
     const wanted = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || ""];
@@ -109,6 +112,10 @@
   }
 
   let lang = initialLang();
+  if (urlLang) {
+    const canonical = document.querySelector('link[rel="canonical"]');
+    if (canonical) canonical.href = `https://kakurega.photo/?lang=${encodeURIComponent(new URLSearchParams(location.search).get("lang"))}`;
+  }
   const t = (key) => TEXT[lang][key];
 
   function pair(name) {
